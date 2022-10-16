@@ -1,0 +1,13 @@
+[ssh]
+Host="10.128.248.93"
+Port=22
+User="cc"
+Passwd="chenchen"
+KeyPath=""
+# SSH Connect Type [Passwd | Key]
+Type="Passwd"
+
+
+[server]
+IP=""
+Port=9097
