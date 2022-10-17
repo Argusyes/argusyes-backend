@@ -2,16 +2,64 @@ package main
 
 import (
 	"fmt"
-	socketIO "github.com/googollee/go-socket.io"
+	"github.com/gin-gonic/gin"
+	"github.com/goccy/go-json"
+	"github.com/gorilla/websocket"
 	"github.com/pelletier/go-toml"
 	"log"
 	"message"
 	"net/http"
 	"ssh"
+	"sync"
 )
 
 func init() {
-	log.SetFlags(log.Ldate | log.Lshortfile)
+	log.SetFlags(log.Ltime | log.Lshortfile)
+}
+
+var wsupgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
+
+var upgrader = websocket.Upgrader{}
+var mutex sync.Mutex
+var m = make(map[string]*websocket.Conn)
+var index = 0
+
+func echo(w http.ResponseWriter, r *http.Request) {
+	c, err := upgrader.Upgrade(w, r, nil)
+	key := fmt.Sprintf("%s:%d", c.RemoteAddr().String(), index)
+	index++
+	mutex.Lock()
+	m[key] = c
+	mutex.Unlock()
+	log.Print("connect" + key)
+	if err != nil {
+		log.Print("upgrade:", err)
+		return
+	}
+	defer c.Close()
+	for {
+		mt, message, err := c.ReadMessage()
+		if err != nil {
+			mutex.Lock()
+			delete(m, key)
+			mutex.Unlock()
+			log.Println("read:", err)
+			break
+		}
+		log.Printf("recv: %s", message)
+		mutex.Lock()
+		for _, v := range m {
+			err = v.WriteMessage(mt, message)
+			if err != nil {
+				log.Println("write:", err)
+				break
+			}
+		}
+		mutex.Unlock()
+	}
 }
 
 func main() {
@@ -24,37 +72,50 @@ func main() {
 
 	ip := conf.Get("server.IP").(string)
 	port := conf.Get("server.Port").(int64)
+	allowOrigin := conf.Get("server.AllowOrigin").(string)
 	addr := fmt.Sprintf("%s:%d", ip, port)
 
-	server := socketIO.NewServer(nil)
-
-	go func() {
-		err := server.Serve()
-		if err != nil {
-			log.Fatalf("socket io server start error : %v", err)
+	ssh.Client.RegisterCPUInfoListener(func(msg message.CPUInfoMessage) {
+		mutex.Lock()
+		for _, v := range m {
+			msgBytes, err := json.Marshal(msg)
+			if err != nil {
+				log.Println("json:", err)
+			}
+			err = v.WriteMessage(1, msgBytes)
+			if err != nil {
+				log.Println("write:", err)
+			}
 		}
-	}()
-
-	defer func(server *socketIO.Server) {
-		err := server.Close()
-		if err != nil {
-			log.Fatalf("socket io server close error : %v", err)
-		}
-	}(server)
-
-	server.OnConnect("/", func(s socketIO.Conn) error {
-		s.SetContext("")
-		s.Join("notification")
-		return nil
-	})
-
-	ssh.Client.RegisterCPUInfoListener(func(m message.CPUInfoMessage) {
-		server.BroadcastToRoom("", "notification", "event:name", m)
+		mutex.Unlock()
 	})
 	ssh.Client.StartAllMonitor()
-	http.Handle("/monitor/", server)
-	err = http.ListenAndServe(addr, nil)
-	if err != nil {
-		log.Fatalf("http server error : %v", err)
+
+	router := gin.New()
+	router.Use(GinMiddleware(allowOrigin))
+	router.GET("/ws", func(c *gin.Context) {
+		echo(c.Writer, c.Request)
+	})
+
+	if err := router.Run(addr); err != nil {
+		log.Fatal("failed run app: ", err)
+	}
+}
+
+func GinMiddleware(allowOrigin string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", allowOrigin)
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, Content-Length, X-CSRF-Token, Token, session, Origin, Host, Connection, Accept-Encoding, Accept-Language, X-Requested-With")
+
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Request.Header.Del("Origin")
+
+		c.Next()
 	}
 }
