@@ -5,14 +5,17 @@ go 1.18
 replace (
 	message => ./message
 	ssh => ./ssh
+	wsocket => ./wsocket
 )
 
 require ssh v0.0.0
 
 require (
 	github.com/gin-gonic/gin v1.8.1
+	github.com/goccy/go-json v0.9.7
 	github.com/pelletier/go-toml v1.9.5
 	message v0.0.0
+	wsocket v0.0.0
 )
 
 require (
@@ -20,7 +23,7 @@ require (
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.10.0 // indirect
-	github.com/goccy/go-json v0.9.7 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect

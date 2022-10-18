@@ -11,4 +11,4 @@ Type="Passwd"
 [server]
 IP=""
 Port=9097
-AllowOrigin="http://10.128.128.216:5173"
+AllowOrigin="http://127.0.0.1:5000"
