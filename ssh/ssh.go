@@ -2,10 +2,8 @@ package ssh
 
 import (
 	"fmt"
-	"github.com/pelletier/go-toml"
 	"golang.org/x/crypto/ssh"
 	"io"
-	"io/ioutil"
 	"log"
 	"message"
 	"sync"
@@ -13,6 +11,7 @@ import (
 )
 
 type SSH struct {
+	Key           string
 	sshClient     *ssh.Client
 	stop          chan int
 	wg            sync.WaitGroup
@@ -20,37 +19,23 @@ type SSH struct {
 }
 
 type CPUInfoClient struct {
-	cpuInfoListener []message.CPUInfoListener
+	cpuInfoListener map[string]message.CPUInfoListener
 	mutex           sync.Mutex
 }
 
-var Client *SSH
-
 const XTERM = "xterm"
 
-func init() {
-	conf, err := toml.LoadFile("./conf.toml")
-	if err != nil {
-		log.Fatalf("Read config file fail : %v", err)
-	}
-	host := conf.Get("ssh.Host").(string)
-	port := conf.Get("ssh.Port").(int64)
-	user := conf.Get("ssh.User").(string)
+func generalKey(port int, host, user string) string {
+	return fmt.Sprintf("%s@%s:%d", user, host, port)
+}
+
+func NewSSH(port int, host, user, passwd string) *SSH {
 
 	config := &ssh.ClientConfig{
 		Timeout:         time.Second,
 		User:            user,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-
-	sshType := conf.Get("ssh.Type").(string)
-
-	if sshType == "Passwd" {
-		passwd := conf.Get("ssh.Passwd").(string)
-		config.Auth = []ssh.AuthMethod{ssh.Password(passwd)}
-	} else if sshType == "Key" {
-		keyPath := conf.Get("ssh.KeyPath").(string)
-		config.Auth = []ssh.AuthMethod{publicKeyAuthFunc(keyPath)}
+		Auth:            []ssh.AuthMethod{ssh.Password(passwd)},
 	}
 
 	addr := fmt.Sprintf("%s:%d", host, port)
@@ -58,28 +43,12 @@ func init() {
 	if err != nil {
 		log.Fatalf("Create ssh client fail : %v", err)
 	}
-	Client = newSSH(sshClient)
-}
-
-func publicKeyAuthFunc(kPath string) ssh.AuthMethod {
-	key, err := ioutil.ReadFile(kPath)
-	if err != nil {
-		log.Fatalf("SSH key file read fail : %v", err)
-	}
-
-	signer, err := ssh.ParsePrivateKey(key)
-	if err != nil {
-		log.Fatalf("SSH key signer fail : %v", err)
-	}
-	return ssh.PublicKeys(signer)
-}
-
-func newSSH(sshClient *ssh.Client) *SSH {
 	return &SSH{
+		Key:       generalKey(port, host, user),
 		sshClient: sshClient,
 		stop:      make(chan int),
 		cpuInfoClient: CPUInfoClient{
-			cpuInfoListener: make([]message.CPUInfoListener, 0),
+			cpuInfoListener: make(map[string]message.CPUInfoListener, 0),
 		},
 	}
 }
@@ -121,10 +90,16 @@ func (h *SSH) StartAllMonitor() {
 	go h.monitorCPUInfo()
 }
 
-func (h *SSH) RegisterCPUInfoListener(listener message.CPUInfoListener) {
+func (h *SSH) RegisterCPUInfoListener(key string, listener message.CPUInfoListener) {
 	h.cpuInfoClient.mutex.Lock()
 	defer h.cpuInfoClient.mutex.Unlock()
-	h.cpuInfoClient.cpuInfoListener = append(h.cpuInfoClient.cpuInfoListener, listener)
+	h.cpuInfoClient.cpuInfoListener[key] = listener
+}
+
+func (h *SSH) RemoveCPUInfoListener(key string) {
+	h.cpuInfoClient.mutex.Lock()
+	defer h.cpuInfoClient.mutex.Unlock()
+	delete(h.cpuInfoClient.cpuInfoListener, key)
 }
 
 func (h *SSH) monitorCPUInfo() {

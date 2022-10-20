@@ -3,10 +3,8 @@ package main
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/goccy/go-json"
 	"github.com/pelletier/go-toml"
 	"log"
-	"message"
 	"net/http"
 	"ssh"
 	"wsocket"
@@ -17,8 +15,6 @@ func init() {
 }
 
 func main() {
-	defer ssh.Client.Close()
-
 	conf, err := toml.LoadFile("./conf.toml")
 	if err != nil {
 		log.Fatalf("Read Config File Fail %e", err)
@@ -33,17 +29,10 @@ func main() {
 	router.Use(ginMiddleware(allowOrigin))
 	router.GET("/monitor", monitorHandler)
 
-	wsocket.WsocketManager.RegisterConnectHandler(func(conn *wsocket.Connect) {
-		ssh.Client.RegisterCPUInfoListener(func(msg message.CPUInfoMessage) {
-			msgBytes, err := json.Marshal(msg)
-			if err != nil {
-				log.Println("json:", err)
-			}
-			conn.WriteMessage(msgBytes)
-		})
+	wsocket.WsocketManager.RegisterMessageHandler(messageRouter)
+	wsocket.WsocketManager.RegisterCloseHandler(func(conn *wsocket.Connect) {
+		ssh.SSHManager.RemoveCPUInfoListener(conn.Key)
 	})
-
-	ssh.Client.StartAllMonitor()
 
 	if err := router.Run(addr); err != nil {
 		log.Fatal("failed run app: ", err)

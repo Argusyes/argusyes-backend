@@ -10,12 +10,12 @@ import (
 )
 
 type ConnectHandler func(conn *Connect)
-type MessageHandler func(conn *Connect, msg string)
+type MessageHandler func(conn *Connect, msg []byte)
 type CloseHandler func(conn *Connect)
 type ErrorHandler func(conn *Connect, err error)
 
 type Connect struct {
-	key     string
+	Key     string
 	conn    *websocket.Conn
 	m       sync.Mutex
 	manager *Manager
@@ -26,7 +26,7 @@ func (c *Connect) WriteMessage(data []byte) {
 	defer c.m.Unlock()
 	err := c.conn.WriteMessage(websocket.TextMessage, data)
 	if err != nil {
-		delete(c.manager.websocketMap, c.key)
+		delete(c.manager.websocketMap, c.Key)
 		c.manager.errorHandlerMutex.Lock()
 		for _, h := range c.manager.errorHandler {
 			h(c, err)
@@ -74,7 +74,7 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := &Connect{
-		key:     key,
+		Key:     key,
 		conn:    conn,
 		manager: m,
 	}
@@ -117,7 +117,6 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 		}
 		switch mt {
 		case websocket.TextMessage:
-			message := string(message)
 			log.Printf("websocket %s recv test: %s", key, message)
 			m.messageHandlerMutex.Lock()
 			for _, h := range m.messageHandler {
