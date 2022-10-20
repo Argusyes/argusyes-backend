@@ -33,6 +33,10 @@ func main() {
 	wsocket.WsocketManager.RegisterCloseHandler(func(conn *wsocket.Connect) {
 		ssh.SSHManager.RemoveCPUInfoListener(conn.Key)
 	})
+	wsocket.WsocketManager.RegisterErrorHandler(func(conn *wsocket.Connect, err error) {
+		ssh.SSHManager.RemoveCPUInfoListener(conn.Key)
+		log.Printf("wsocket err %v", err)
+	})
 
 	if err := router.Run(addr); err != nil {
 		log.Fatal("failed run app: ", err)

@@ -25,10 +25,6 @@ type CPUInfoClient struct {
 
 const XTERM = "xterm"
 
-func generalKey(port int, host, user string) string {
-	return fmt.Sprintf("%s@%s:%d", user, host, port)
-}
-
 func NewSSH(port int, host, user, passwd string) *SSH {
 
 	config := &ssh.ClientConfig{
@@ -44,7 +40,7 @@ func NewSSH(port int, host, user, passwd string) *SSH {
 		log.Fatalf("Create ssh client fail : %v", err)
 	}
 	return &SSH{
-		Key:       generalKey(port, host, user),
+		Key:       GeneralKey(port, host, user),
 		sshClient: sshClient,
 		stop:      make(chan int),
 		cpuInfoClient: CPUInfoClient{
@@ -55,6 +51,7 @@ func NewSSH(port int, host, user, passwd string) *SSH {
 
 func (h *SSH) Close() {
 	close(h.stop)
+	h.wg.Wait()
 	err := h.sshClient.Close()
 	if err != nil {
 		log.Fatalf("SSH cleint close fail : %v", err)
