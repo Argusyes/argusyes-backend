@@ -38,6 +38,7 @@ func parseCPUInfoMessage(s string) (m message.CPUInfoMessage) {
 		} else if strings.HasPrefix(line, "power management") {
 			m.CPUInfo = append(m.CPUInfo, info)
 			info = message.CPUInfo{}
+			m.ProcessorNum = int64(len(m.CPUInfo))
 		}
 	}
 }

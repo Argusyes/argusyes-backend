@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-func GeneralKey(port int, host, user string) string {
+func generalKey(port int, host, user string) string {
 	return fmt.Sprintf("%s@%s:%d", user, host, port)
 }
 
@@ -23,8 +23,8 @@ func newManager() *Manager {
 	}
 }
 
-func (m *Manager) GetSSH(port int, host, user, passwd string) *SSH {
-	key := GeneralKey(port, host, user)
+func (m *Manager) getSSH(port int, host, user, passwd string) *SSH {
+	key := generalKey(port, host, user)
 	m.sshMapMutex.Lock()
 	defer m.sshMapMutex.Unlock()
 	ssh, ok := m.sshMap[key]
@@ -32,39 +32,45 @@ func (m *Manager) GetSSH(port int, host, user, passwd string) *SSH {
 	if ok {
 		return ssh
 	}
-	ssh = NewSSH(port, host, user, passwd)
+	ssh = newSSH(port, host, user, passwd)
 	m.sshMap[key] = ssh
-	ssh.StartAllMonitor()
+	ssh.startAllMonitor()
 	log.Printf("ssh client create %s", ssh.Key)
 	return ssh
 }
 
-func (m *Manager) RemoveCPUInfoListener(key string) {
+func (m *Manager) deleteSSH(key string) {
+	m.sshMapMutex.Lock()
+	delete(m.sshMap, key)
+	m.sshMapMutex.Unlock()
+}
+
+func (m *Manager) RegisterAllMonitorListener(port int, host, user, passwd, wsKey string, listener *Listener) {
+	s := m.getSSH(port, host, user, passwd)
+	s.RegisterCPUInfoListener(wsKey, listener.CPUInfoListener)
+}
+
+func (m *Manager) ClearListener(wsKey string) {
 	for _, v := range m.sshMap {
-		v.RemoveCPUInfoListener(key)
+		v.RemoveCPUInfoListener(wsKey)
 		if len(v.cpuInfoClient.cpuInfoListener) == 0 {
-			m.sshMapMutex.Lock()
-			delete(m.sshMap, v.Key)
-			m.sshMapMutex.Unlock()
 			v.Close()
+			m.deleteSSH(v.Key)
 			log.Printf("ssh client delete %s", v.Key)
 		}
 	}
 }
 
-func (m *Manager) RemoveSSHCPUInfoListener(sshKeys []string, key string) {
-	for _, sshKey := range sshKeys {
-		v, ok := m.sshMap[sshKey]
-		if !ok {
-			return
-		}
-		v.RemoveCPUInfoListener(key)
-		if len(v.cpuInfoClient.cpuInfoListener) == 0 {
-			m.sshMapMutex.Lock()
-			delete(m.sshMap, v.Key)
-			m.sshMapMutex.Unlock()
-			v.Close()
-			log.Printf("ssh client delete %s", v.Key)
-		}
+func (m *Manager) RemoveSSHListener(port int, host, user, wsKey string) {
+	sshKey := generalKey(port, host, user)
+	v, ok := m.sshMap[sshKey]
+	if !ok {
+		return
+	}
+	v.RemoveCPUInfoListener(wsKey)
+	if len(v.cpuInfoClient.cpuInfoListener) == 0 {
+		m.deleteSSH(sshKey)
+		v.Close()
+		log.Printf("ssh client delete %s", v.Key)
 	}
 }

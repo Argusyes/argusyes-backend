@@ -10,14 +10,14 @@ import (
 )
 
 type WSRequest struct {
-	Id     string      `json:"id"`
+	Id     *string     `json:"id"`
 	Method string      `json:"method"`
 	Params interface{} `json:"params"`
 }
 
 type WSMonitorSSHRequest struct {
-	Id     string `json:"id"`
-	Method string `json:"method"`
+	Id     *string `json:"id"`
+	Method string  `json:"method"`
 	Params []struct {
 		Port   int    `json:"port"`
 		Host   string `json:"host"`
@@ -27,13 +27,32 @@ type WSMonitorSSHRequest struct {
 }
 
 type WSUnMonitorSSHRequest struct {
-	Id     string `json:"id"`
-	Method string `json:"method"`
+	Id     *string `json:"id"`
+	Method string  `json:"method"`
 	Params []struct {
 		Port int    `json:"port"`
 		Host string `json:"host"`
 		User string `json:"user"`
 	} `json:"params"`
+}
+
+func getSSHListener(conn *wsocket.Connect) *ssh.Listener {
+	return &ssh.Listener{
+		CPUInfoListener: func(m message.CPUInfoMessage) {
+			param := [...]message.CPUInfoMessage{m}
+			request := &WSRequest{
+				Id:     nil,
+				Method: "ssh.notification",
+				Params: param,
+			}
+
+			requestBytes, err := json.Marshal(request)
+			if err != nil {
+				log.Fatalf("json parse fail : %v", err)
+			}
+			conn.WriteMessage(requestBytes)
+		},
+	}
 }
 
 func messageRouter(conn *wsocket.Connect, msg []byte) {
@@ -54,33 +73,24 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 		log.Printf("Json parse fail : %v", err)
 	}
 	switch wsRequest.Method {
-	case "connect_ssh":
+	case "ssh.connect":
 		wsMonitorSSHRequest := &WSMonitorSSHRequest{}
 		err := json.Unmarshal(msg, wsMonitorSSHRequest)
 		if err != nil {
 			log.Printf("Json parse fail : %v", err)
 		}
 		for _, p := range wsMonitorSSHRequest.Params {
-			s := ssh.SSHManager.GetSSH(p.Port, p.Host, p.User, p.Passwd)
-			s.RegisterCPUInfoListener(conn.Key, func(msg message.CPUInfoMessage) {
-				msgBytes, err := json.Marshal(msg)
-				if err != nil {
-					log.Println("json:", err)
-				}
-				conn.WriteMessage(msgBytes)
-			})
+			ssh.SSHManager.RegisterAllMonitorListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, getSSHListener(conn))
 		}
-	case "disconnect_ssh":
+	case "ssh.disconnect":
 		wsUnMonitorSSHRequest := &WSUnMonitorSSHRequest{}
 		err := json.Unmarshal(msg, wsUnMonitorSSHRequest)
 		if err != nil {
 			log.Printf("Json parse fail : %v", err)
 		}
-		sshKeys := make([]string, 0)
 		for _, p := range wsUnMonitorSSHRequest.Params {
-			sshKeys = append(sshKeys, ssh.GeneralKey(p.Port, p.Host, p.User))
+			ssh.SSHManager.RemoveSSHListener(p.Port, p.Host, p.User, conn.Key)
 		}
-		ssh.SSHManager.RemoveSSHCPUInfoListener(sshKeys, conn.Key)
 	}
 }
 

@@ -31,11 +31,10 @@ func main() {
 
 	wsocket.WsocketManager.RegisterMessageHandler(messageRouter)
 	wsocket.WsocketManager.RegisterCloseHandler(func(conn *wsocket.Connect) {
-		ssh.SSHManager.RemoveCPUInfoListener(conn.Key)
+		ssh.SSHManager.ClearListener(conn.Key)
 	})
 	wsocket.WsocketManager.RegisterErrorHandler(func(conn *wsocket.Connect, err error) {
-		ssh.SSHManager.RemoveCPUInfoListener(conn.Key)
-		log.Printf("wsocket err %v", err)
+		ssh.SSHManager.ClearListener(conn.Key)
 	})
 
 	if err := router.Run(addr); err != nil {

@@ -25,7 +25,7 @@ type CPUInfoClient struct {
 
 const XTERM = "xterm"
 
-func NewSSH(port int, host, user, passwd string) *SSH {
+func newSSH(port int, host, user, passwd string) *SSH {
 
 	config := &ssh.ClientConfig{
 		Timeout:         time.Second,
@@ -40,7 +40,7 @@ func NewSSH(port int, host, user, passwd string) *SSH {
 		log.Fatalf("Create ssh client fail : %v", err)
 	}
 	return &SSH{
-		Key:       GeneralKey(port, host, user),
+		Key:       generalKey(port, host, user),
 		sshClient: sshClient,
 		stop:      make(chan int),
 		cpuInfoClient: CPUInfoClient{
@@ -82,7 +82,7 @@ func closeSession(where string, session *ssh.Session) {
 	}
 }
 
-func (h *SSH) StartAllMonitor() {
+func (h *SSH) startAllMonitor() {
 	h.wg.Add(1)
 	go h.monitorCPUInfo()
 }
