@@ -17,6 +17,7 @@ func parseCPUInfoMessage(s string) (m message.CPUInfoMessage) {
 	info := message.CPUInfo{}
 	for {
 		line, err := reader.ReadString('\n')
+		line = strings.ReplaceAll(line, "\r\n", "")
 		if err != nil {
 			if err != io.EOF {
 				log.Printf("ParseCPUInfo error : %v", err)
@@ -24,7 +25,6 @@ func parseCPUInfoMessage(s string) (m message.CPUInfoMessage) {
 			return m
 		}
 		if strings.HasPrefix(line, "processor") {
-			line = strings.ReplaceAll(line, "\r\n", "")
 			line = strings.ReplaceAll(line, " ", "")
 			splits := strings.Split(line, ":")
 			res, err := strconv.ParseInt(splits[1], 10, 64)

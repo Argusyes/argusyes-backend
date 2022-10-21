@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/goccy/go-json"
 	"log"
 	"message"
@@ -34,6 +35,12 @@ type WSUnMonitorSSHRequest struct {
 		Host string `json:"host"`
 		User string `json:"user"`
 	} `json:"params"`
+}
+
+type WSResponse struct {
+	Id     string  `json:"id"`
+	Result *string `json:"result"`
+	Error  *string `json:"error"`
 }
 
 func getSSHListener(conn *wsocket.Connect) *ssh.Listener {
@@ -73,24 +80,50 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 		log.Printf("Json parse fail : %v", err)
 	}
 	switch wsRequest.Method {
-	case "ssh.connect":
+	case "ssh.start_monitor":
+		wsResponse := &WSResponse{
+			Id:     *wsRequest.Id,
+			Result: nil,
+			Error:  nil,
+		}
 		wsMonitorSSHRequest := &WSMonitorSSHRequest{}
 		err := json.Unmarshal(msg, wsMonitorSSHRequest)
 		if err != nil {
+			eString := fmt.Sprintf("Json parse fail : %v", err)
+			wsResponse.Error = &eString
 			log.Printf("Json parse fail : %v", err)
 		}
 		for _, p := range wsMonitorSSHRequest.Params {
 			ssh.SSHManager.RegisterAllMonitorListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, getSSHListener(conn))
 		}
-	case "ssh.disconnect":
+
+		wsResponseBytes, err := json.Marshal(wsResponse)
+		if err != nil {
+			log.Printf("Json parse fail : %v", err)
+		}
+		conn.WriteMessage(wsResponseBytes)
+
+	case "ssh.stop_monitor":
+		wsResponse := &WSResponse{
+			Id:     *wsRequest.Id,
+			Result: nil,
+			Error:  nil,
+		}
 		wsUnMonitorSSHRequest := &WSUnMonitorSSHRequest{}
 		err := json.Unmarshal(msg, wsUnMonitorSSHRequest)
 		if err != nil {
+			eString := fmt.Sprintf("Json parse fail : %v", err)
+			wsResponse.Error = &eString
 			log.Printf("Json parse fail : %v", err)
 		}
 		for _, p := range wsUnMonitorSSHRequest.Params {
 			ssh.SSHManager.RemoveSSHListener(p.Port, p.Host, p.User, conn.Key)
 		}
+		wsResponseBytes, err := json.Marshal(wsResponse)
+		if err != nil {
+			log.Printf("Json parse fail : %v", err)
+		}
+		conn.WriteMessage(wsResponseBytes)
 	}
 }
 
