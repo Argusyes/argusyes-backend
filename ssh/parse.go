@@ -1,44 +1,37 @@
 package ssh
 
 import (
-	"bufio"
-	"io"
 	"log"
 	"message"
-	"strconv"
+	"regexp"
 	"strings"
 )
 
-func parseCPUInfoMessage(s string) (m message.CPUInfoMessage) {
-	reader := bufio.NewReader(strings.NewReader(s))
+func parseCPUInfoMessage(sshKey, s string) (m message.CPUInfoMessage) {
 	m = message.CPUInfoMessage{
-		CPUInfo: make([]message.CPUInfo, 0),
+		CPUInfoMap: make(map[string]message.CPUInfo),
+		SSHKey:     sshKey,
 	}
-	info := message.CPUInfo{}
-	for {
-		line, err := reader.ReadString('\n')
-		line = strings.ReplaceAll(line, "\r\n", "")
-		if err != nil {
-			if err != io.EOF {
-				log.Printf("ParseCPUInfo error : %v", err)
-			}
-			return m
+	cpus := strings.Split(s, "\r\n\r\n")
+	for _, cpu := range cpus {
+		cpu = strings.TrimSpace(cpu)
+		if len(cpu) == 0 {
+			continue
 		}
-		if strings.HasPrefix(line, "processor") {
-			line = strings.ReplaceAll(line, " ", "")
-			splits := strings.Split(line, ":")
-			res, err := strconv.ParseInt(splits[1], 10, 64)
-			if err != nil {
-				log.Printf("ParseCPUInfo processor error : %v", err)
+		// 正则匹配
+		physicalIdReg := regexp.MustCompile(`physical id\t: (\d+)\r\n`)
+		if physicalIdReg == nil {
+			log.Fatalf("regexp parse fail : physical id")
+		}
+		physicalIdRegResults := physicalIdReg.FindAllSubmatch([]byte(cpu), -1)
+		physicalId := string(physicalIdRegResults[0][1])
+		cpuInfo, ok := m.CPUInfoMap[physicalId]
+		if !ok {
+			cpuInfo = message.CPUInfo{
+				PhysicalId: physicalId,
 			}
-			info.Processor = res
-		} else if strings.HasPrefix(line, "model name") {
-			splits := strings.Split(line, ":")
-			info.ModelName = splits[1]
-		} else if strings.HasPrefix(line, "power management") {
-			m.CPUInfo = append(m.CPUInfo, info)
-			info = message.CPUInfo{}
-			m.ProcessorNum = int64(len(m.CPUInfo))
+			m.CPUInfoMap[physicalId] = cpuInfo
 		}
 	}
+	return
 }
