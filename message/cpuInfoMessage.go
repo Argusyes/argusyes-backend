@@ -1,6 +1,7 @@
 package message
 
 type CPUInfoMessage struct {
+	SSHKey       string    `json:"ssh_key"`
 	ProcessorNum int64     `json:"processor_num"`
 	CPUInfo      []CPUInfo `json:"cpu_info"`
 }

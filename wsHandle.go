@@ -37,6 +37,16 @@ type WSUnMonitorSSHRequest struct {
 	} `json:"params"`
 }
 
+type WSNotificationRequest struct {
+	Id     *string `json:"id"`
+	Method string  `json:"method"`
+	Params []struct {
+		SSHKey  string                 `json:"ssh_key"`
+		Event   string                 `json:"event"`
+		Message message.CPUInfoMessage `json:"message"`
+	} `json:"params"`
+}
+
 type WSResponse struct {
 	Id     string  `json:"id"`
 	Result *string `json:"result"`
@@ -46,11 +56,18 @@ type WSResponse struct {
 func getSSHListener(conn *wsocket.Connect) *ssh.Listener {
 	return &ssh.Listener{
 		CPUInfoListener: func(m message.CPUInfoMessage) {
-			param := [...]message.CPUInfoMessage{m}
-			request := &WSRequest{
+			request := &WSNotificationRequest{
 				Id:     nil,
 				Method: "ssh.notification",
-				Params: param,
+				Params: []struct {
+					SSHKey  string                 `json:"ssh_key"`
+					Event   string                 `json:"event"`
+					Message message.CPUInfoMessage `json:"message"`
+				}{{
+					SSHKey:  m.SSHKey,
+					Event:   "cpu_info",
+					Message: m,
+				}},
 			}
 
 			requestBytes, err := json.Marshal(request)

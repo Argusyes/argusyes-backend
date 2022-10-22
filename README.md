@@ -82,18 +82,27 @@ response example
   "method": "ssh.notification",
   "params": [
     {
-      "processor_num": 8,
-      "cpu_info": [
-        {
-          "processor": 0,
-          "model_name": " Intel(R) Xeon(R) CPU E3-1265L v3 @ 2.50GHz"
-        },
-        {
-          "processor": 1,
-          "model_name": " Intel(R) Xeon(R) CPU E3-1265L v3 @ 2.50GHz"
-        }
-        // more cpu info
-      ]
+      "ssh_key": "cc@10.128.248.93:22",
+      "event": "cpu_info",
+      "message": {
+        "ssh_key": "cc@10.128.248.93:22",
+        "processor_num": 8,
+        "cpu_info": [
+          {
+            "processor": 0,
+            "model_name": " Intel(R) Xeon(R) CPU E3-1265L v3 @ 2.50GHz"
+          },
+          {
+            "processor": 1,
+            "model_name": " Intel(R) Xeon(R) CPU E3-1265L v3 @ 2.50GHz"
+          },
+          {
+            "processor": 2,
+            "model_name": " Intel(R) Xeon(R) CPU E3-1265L v3 @ 2.50GHz"
+          }
+          // more cpu info
+        ]
+      }
     }
   ]
 }

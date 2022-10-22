@@ -119,6 +119,7 @@ func (h *SSH) monitorCPUInfo() {
 				log.Printf("Run %s command fail : %v", where, err)
 			}
 			m := parseCPUInfoMessage(string(s))
+			m.SSHKey = h.Key
 			h.cpuInfoClient.mutex.Lock()
 			for _, l := range h.cpuInfoClient.cpuInfoListener {
 				l(m)
