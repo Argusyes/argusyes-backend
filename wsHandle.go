@@ -15,71 +15,71 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type WSRequest struct {
 	Id     *string     `json:"id"`
-	Method string      `json:"method"`
+	Method string      `json:"method" validate:"required"`
 	Params interface{} `json:"params"`
 }
 
 type WSMonitorSSHRequest struct {
-	Id     *string `json:"id"`
-	Method string  `json:"method"`
+	Id     *string `json:"id" validate:"required"`
+	Method string  `json:"method" validate:"required"`
 	Params []struct {
 		Port   int    `json:"port"`
 		Host   string `json:"host" validate:"ip_addr"`
-		User   string `json:"user"`
-		Passwd string `json:"passwd"`
+		User   string `json:"user" validate:"required"`
+		Passwd string `json:"passwd" validate:"required"`
 	} `json:"params" validate:"required,dive"`
 }
 
 type WSUnMonitorSSHRequest struct {
-	Id     *string `json:"id"`
-	Method string  `json:"method"`
+	Id     *string `json:"id" validate:"required"`
+	Method string  `json:"method" validate:"required"`
 	Params []struct {
-		Port int    `json:"port"`
-		Host string `json:"host"`
-		User string `json:"user"`
-	} `json:"params"`
+		Port int    `json:"port" validate:"required"`
+		Host string `json:"host" validate:"ip_addr"`
+		User string `json:"user" validate:"required"`
+	} `json:"params" validate:"required,dive"`
 }
 
 type WSNotificationRequest struct {
 	Id     *string `json:"id"`
-	Method string  `json:"method"`
+	Method string  `json:"method" validate:"required"`
 	Params []struct {
-		Event   string                 `json:"event"`
-		Message message.CPUInfoMessage `json:"message"`
-	} `json:"params"`
+		Event   string                 `json:"event" validate:"required"`
+		Message message.CPUInfoMessage `json:"message" validate:"required"`
+	} `json:"params" validate:"required,dive"`
 }
 
 type WSResponse struct {
-	Id     string      `json:"id"`
+	Id     string      `json:"id" validate:"required"`
 	Error  *string     `json:"error"`
 	Result interface{} `json:"result"`
 }
 
 type WSMonitorSSHResponse struct {
-	Id     string                       `json:"id"`
+	Id     string                       `json:"id" validate:"required"`
 	Error  *string                      `json:"error"`
-	Result []WSMonitorSSHResponseResult `json:"result"`
+	Result []WSMonitorSSHResponseResult `json:"result" validate:"dive"`
 }
 
 type WSMonitorSSHResponseResult struct {
-	Port    int     `json:"port"`
-	Host    string  `json:"host"`
-	User    string  `json:"user"`
-	Monitor bool    `json:"monitor"`
+	Port    int     `json:"port" validate:"required"`
+	Host    string  `json:"host" validate:"ip_addr"`
+	User    string  `json:"user" validate:"required"`
+	Monitor bool    `json:"monitor" validate:"required"`
 	Error   *string `json:"error"`
 }
 
 type WSUnMonitorSSHResponse struct {
-	Id     string                         `json:"id"`
+	Id     string                         `json:"id" validate:"required"`
 	Error  *string                        `json:"error"`
-	Result []WSUnMonitorSSHResponseResult `json:"result"`
+	Result []WSUnMonitorSSHResponseResult `json:"result" validate:"dive"`
 }
 
 type WSUnMonitorSSHResponseResult struct {
-	Port      int     `json:"port"`
-	Host      string  `json:"host"`
-	User      string  `json:"user"`
-	UnMonitor bool    `json:"un_monitor"`
+	Port      int     `json:"port" validate:"required"`
+	Host      string  `json:"host" validate:"ip_addr"`
+	User      string  `json:"user" validate:"required"`
+	UnMonitor bool    `json:"un_monitor" validate:"required"`
 	Error     *string `json:"error"`
 }
 
@@ -90,8 +90,8 @@ func getSSHListener(conn *wsocket.Connect) *ssh.Listener {
 				Id:     nil,
 				Method: "ssh.notification",
 				Params: []struct {
-					Event   string                 `json:"event"`
-					Message message.CPUInfoMessage `json:"message"`
+					Event   string                 `json:"event" validate:"required"`
+					Message message.CPUInfoMessage `json:"message" validate:"required"`
 				}{{
 					Event:   "cpu_info",
 					Message: m,
