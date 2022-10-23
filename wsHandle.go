@@ -2,13 +2,16 @@ package main
 
 import (
 	"fmt"
-	"github.com/goccy/go-json"
+	jsoniter "github.com/json-iterator/go"
 	"log"
 	"message"
+	"regexp"
 	"ssh"
 	"strings"
 	"wsocket"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type WSRequest struct {
 	Id     *string     `json:"id"`
@@ -21,10 +24,10 @@ type WSMonitorSSHRequest struct {
 	Method string  `json:"method"`
 	Params []struct {
 		Port   int    `json:"port"`
-		Host   string `json:"host"`
+		Host   string `json:"host" validate:"ip_addr"`
 		User   string `json:"user"`
 		Passwd string `json:"passwd"`
-	} `json:"params"`
+	} `json:"params" validate:"required,dive"`
 }
 
 type WSUnMonitorSSHRequest struct {
@@ -104,6 +107,52 @@ func getSSHListener(conn *wsocket.Connect) *ssh.Listener {
 	}
 }
 
+func messageJsonParseHelper(id string, conn *wsocket.Connect, msg []byte, v interface{}) bool {
+	err := json.Unmarshal(msg, v)
+	if err != nil {
+		errText := fmt.Sprintf("Json parse fail : %v", err)
+		log.Printf(errText)
+		wsResponse := &WSResponse{
+			Id:     id,
+			Result: nil,
+			Error:  &errText,
+		}
+		wsResponseBytes, err := json.Marshal(wsResponse)
+		if err != nil {
+			log.Printf("Json parse fail : %v", err)
+		}
+		conn.WriteMessage(wsResponseBytes)
+		return false
+	} else if err := valid.Struct(v); err != nil {
+		errText := fmt.Sprintf("message validate fail : %v", err)
+		log.Printf(errText)
+		wsResponse := &WSResponse{
+			Id:     id,
+			Result: nil,
+			Error:  &errText,
+		}
+		if wsResponseBytes, ok := messageJsonStringifyHelper(wsResponse); ok {
+			conn.WriteMessage(wsResponseBytes)
+		}
+		return false
+	}
+	return true
+}
+
+func messageJsonStringifyHelper(v interface{}) ([]byte, bool) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		errText := fmt.Sprintf("Json parse fail : %v", err)
+		log.Printf(errText)
+		return nil, false
+	} else if err := valid.Struct(v); err != nil {
+		errText := fmt.Sprintf("message validate fail : %v", err)
+		log.Printf(errText)
+		return nil, false
+	}
+	return bytes, true
+}
+
 func messageRouter(conn *wsocket.Connect, msg []byte) {
 	ms := string(msg)
 	if strings.Contains(ms, "method") {
@@ -121,35 +170,29 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 	if err != nil {
 		errText := fmt.Sprintf("Json parse fail : %v", err)
 		log.Printf(errText)
+		idReg := regexp.MustCompile(`"id":"([^)]+)"`)
+		if idReg == nil {
+			log.Fatalf("regexp parse fail : id")
+		}
+		idRegResults := idReg.FindAllSubmatch(msg, -1)
+		if idRegResults == nil {
+			log.Printf("parse id fail")
+			return
+		}
 		wsResponse := &WSResponse{
-			Id:     *wsRequest.Id,
+			Id:     string(idRegResults[0][1]),
 			Result: nil,
 			Error:  &errText,
 		}
-		wsResponseBytes, err := json.Marshal(wsResponse)
-		if err != nil {
-			log.Printf("Json parse fail : %v", err)
+		if wsResponseBytes, ok := messageJsonStringifyHelper(wsResponse); ok {
+			conn.WriteMessage(wsResponseBytes)
 		}
-		conn.WriteMessage(wsResponseBytes)
 		return
 	}
 	switch wsRequest.Method {
 	case "ssh.start_monitor":
 		wsMonitorSSHRequest := &WSMonitorSSHRequest{}
-		err := json.Unmarshal(msg, wsMonitorSSHRequest)
-		if err != nil {
-			errText := fmt.Sprintf("Json parse fail : %v", err)
-			log.Printf(errText)
-			wsResponse := &WSResponse{
-				Id:     *wsRequest.Id,
-				Result: nil,
-				Error:  &errText,
-			}
-			wsResponseBytes, err := json.Marshal(wsResponse)
-			if err != nil {
-				log.Printf("Json parse fail : %v", err)
-			}
-			conn.WriteMessage(wsResponseBytes)
+		if ok := messageJsonParseHelper(*wsRequest.Id, conn, msg, wsMonitorSSHRequest); !ok {
 			return
 		}
 		wsMonitorSSHResponse := &WSMonitorSSHResponse{
@@ -174,29 +217,13 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 			}
 			wsMonitorSSHResponse.Result = append(wsMonitorSSHResponse.Result, result)
 		}
-		wsResponseBytes, err := json.Marshal(wsMonitorSSHResponse)
-		if err != nil {
-			log.Printf("Json parse fail : %v", err)
+		if wsResponseBytes, ok := messageJsonStringifyHelper(wsMonitorSSHResponse); ok {
+			conn.WriteMessage(wsResponseBytes)
 		}
-		conn.WriteMessage(wsResponseBytes)
-
 	case "ssh.stop_monitor":
 
 		wsUnMonitorSSHRequest := &WSUnMonitorSSHRequest{}
-		err := json.Unmarshal(msg, wsUnMonitorSSHRequest)
-		if err != nil {
-			eString := fmt.Sprintf("Json parse fail : %v", err)
-			log.Printf(eString)
-			wsResponse := &WSResponse{
-				Id:     *wsRequest.Id,
-				Result: nil,
-				Error:  &eString,
-			}
-			wsResponseBytes, err := json.Marshal(wsResponse)
-			if err != nil {
-				log.Printf("Json parse fail : %v", err)
-			}
-			conn.WriteMessage(wsResponseBytes)
+		if ok := messageJsonParseHelper(*wsRequest.Id, conn, msg, wsUnMonitorSSHRequest); !ok {
 			return
 		}
 		wsUnMonitorSSHResponse := &WSUnMonitorSSHResponse{
@@ -215,11 +242,9 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 			}
 			wsUnMonitorSSHResponse.Result = append(wsUnMonitorSSHResponse.Result, result)
 		}
-		wsResponseBytes, err := json.Marshal(wsUnMonitorSSHResponse)
-		if err != nil {
-			log.Printf("Json parse fail : %v", err)
+		if wsResponseBytes, ok := messageJsonStringifyHelper(wsUnMonitorSSHResponse); ok {
+			conn.WriteMessage(wsResponseBytes)
 		}
-		conn.WriteMessage(wsResponseBytes)
 	}
 }
 

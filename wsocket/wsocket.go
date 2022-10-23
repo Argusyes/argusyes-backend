@@ -117,7 +117,7 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 		}
 		switch mt {
 		case websocket.TextMessage:
-			log.Printf("websocket %s recv test: %s", key, message)
+			log.Printf("websocket %s recv : %s", key, message)
 			m.messageHandlerMutex.Lock()
 			for _, h := range m.messageHandler {
 				h(c, message)

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/pelletier/go-toml"
 	"log"
 	"net/http"
@@ -10,8 +11,11 @@ import (
 	"wsocket"
 )
 
+var valid *validator.Validate
+
 func init() {
 	log.SetFlags(log.Ltime | log.Lshortfile)
+	valid = validator.New()
 }
 
 func main() {
