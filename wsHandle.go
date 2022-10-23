@@ -41,7 +41,6 @@ type WSNotificationRequest struct {
 	Id     *string `json:"id"`
 	Method string  `json:"method"`
 	Params []struct {
-		SSHKey  string                 `json:"ssh_key"`
 		Event   string                 `json:"event"`
 		Message message.CPUInfoMessage `json:"message"`
 	} `json:"params"`
@@ -60,11 +59,9 @@ func getSSHListener(conn *wsocket.Connect) *ssh.Listener {
 				Id:     nil,
 				Method: "ssh.notification",
 				Params: []struct {
-					SSHKey  string                 `json:"ssh_key"`
 					Event   string                 `json:"event"`
 					Message message.CPUInfoMessage `json:"message"`
 				}{{
-					SSHKey:  m.SSHKey,
 					Event:   "cpu_info",
 					Message: m,
 				}},

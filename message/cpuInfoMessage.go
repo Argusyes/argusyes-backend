@@ -1,12 +1,12 @@
 package message
 
 type CPUInfoMessage struct {
-	SSHKey     string             `json:"ssh_key"`
-	CPUInfoMap map[string]CPUInfo `json:"cpu_info"`
+	SSHKey     string            `json:"ssh_key"`
+	CPUInfoMap map[int64]CPUInfo `json:"cpu_info"`
 }
 
 type CPUInfo struct {
-	CPUCoreInfoMap map[string]CPUCoreInfo `json:"cpu_core_info"`
+	CPUCoreInfoMap map[int64]CPUCoreInfo `json:"cpu_core_info"`
 	// CPU 制造商
 	VendorId string `json:"vendor_id"`
 	// CPU 产品系列代号
@@ -20,7 +20,7 @@ type CPUInfo struct {
 	// CPU 二级缓存大小
 	CacheSize string `json:"cache_size"`
 	// CPU id
-	PhysicalId string `json:"physical_id"`
+	PhysicalId int64 `json:"physical_id"`
 	// CPU 逻辑核心数
 	Siblings int64 `json:"siblings"`
 	// CPU 物理核心数
@@ -40,7 +40,7 @@ type CPUInfo struct {
 }
 
 type CPUCoreInfo struct {
-	CPUProcessorInfoMap map[string]CPUProcessorInfo `json:"cpu_processor_info"`
+	CPUProcessorInfoMap map[int64]CPUProcessorInfo `json:"cpu_processor_info"`
 	// CPU 物理核心ID
 	CoreId int64 `json:"core_id"`
 }
