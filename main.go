@@ -6,6 +6,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/pelletier/go-toml"
 	"log"
+	"mongoDB"
 	"net/http"
 	"ssh"
 	"wsocket"
@@ -19,6 +20,8 @@ func init() {
 }
 
 func main() {
+	defer mongoDB.Client.Close()
+
 	conf, err := toml.LoadFile("./conf.toml")
 	if err != nil {
 		log.Fatalf("Read Config File Fail %e", err)
@@ -32,6 +35,7 @@ func main() {
 	router := gin.New()
 	router.Use(ginMiddleware(allowOrigin))
 	router.GET("/monitor", monitorHandler)
+	router.POST("/user/addSSH", addUserSSHHandler)
 
 	wsocket.WsocketManager.RegisterMessageHandler(messageRouter)
 	wsocket.WsocketManager.RegisterCloseHandler(func(conn *wsocket.Connect) {

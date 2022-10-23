@@ -1,11 +1,5 @@
-[ssh]
-Host="10.128.248.93"
-Port=22
-User="cc"
-Passwd="chenchen"
-KeyPath=""
-# SSH Connect Type [Passwd | Key]
-Type="Passwd"
+[mongo]
+Host="mongodb://10.112.230.222:27017"
 
 
 [server]
