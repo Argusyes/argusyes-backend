@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"errors"
 	"fmt"
 	"golang.org/x/crypto/ssh"
 	"io"
@@ -12,6 +13,9 @@ import (
 
 type SSH struct {
 	Key           string
+	Port          int
+	Host          string
+	User          string
 	sshClient     *ssh.Client
 	stop          chan int
 	wg            sync.WaitGroup
@@ -25,7 +29,7 @@ type CPUInfoClient struct {
 
 const XTERM = "xterm"
 
-func newSSH(port int, host, user, passwd string) *SSH {
+func newSSH(port int, host, user, passwd string) (*SSH, error) {
 
 	config := &ssh.ClientConfig{
 		Timeout:         time.Second,
@@ -37,16 +41,21 @@ func newSSH(port int, host, user, passwd string) *SSH {
 	addr := fmt.Sprintf("%s:%d", host, port)
 	sshClient, err := ssh.Dial("tcp", addr, config)
 	if err != nil {
-		log.Fatalf("Create ssh client fail : %v", err)
+		errText := fmt.Sprintf("Create ssh client %s fail : %v", generalKey(port, host, user), err)
+		log.Printf(errText)
+		return nil, errors.New(errText)
 	}
 	return &SSH{
 		Key:       generalKey(port, host, user),
+		Port:      port,
+		Host:      host,
+		User:      user,
 		sshClient: sshClient,
 		stop:      make(chan int),
 		cpuInfoClient: CPUInfoClient{
 			cpuInfoListener: make(map[string]message.CPUInfoListener, 0),
 		},
-	}
+	}, nil
 }
 
 func (h *SSH) Close() {
@@ -118,7 +127,7 @@ func (h *SSH) monitorCPUInfo() {
 			if err != nil {
 				log.Printf("Run %s command fail : %v", where, err)
 			}
-			m := parseCPUInfoMessage(h.Key, string(s))
+			m := parseCPUInfoMessage(h.Port, h.Host, h.User, string(s))
 			h.cpuInfoClient.mutex.Lock()
 			for _, l := range h.cpuInfoClient.cpuInfoListener {
 				l(m)

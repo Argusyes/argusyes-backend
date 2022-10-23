@@ -25,8 +25,13 @@ request example
       "host": "10.128.248.93",
       "user": "cc",
       "passwd": "chenchen"
+    },
+    {
+      "port": 10022,
+      "host": "10.112.230.222",
+      "user": "chenchen",
+      "passwd": "chenchen"
     }
-    // more ssh connect
   ]
 }
 ```
@@ -36,9 +41,23 @@ response example
 ```json
 {
   "id": "same as request",
-  "result": null,
+  "result": [
+    {
+      "port": 22,
+      "host": "10.128.248.93",
+      "user": "cc",
+      "monitor": true,
+      "error": null
+    },
+    {
+      "port": 10022,
+      "host": "10.112.230.222",
+      "user": "chenchen",
+      "monitor": true,
+      "error": null
+    }
+  ],
   "error": null
-  // if no err else a string descibe the error
 }
 ```
 
@@ -55,8 +74,13 @@ request example
       "port": 22,
       "host": "10.128.248.93",
       "user": "cc"
+    },
+    {
+      "port": 10022,
+      "host": "10.112.230.222",
+      "user": "chenchen",
+      "passwd": "chenchen"
     }
-    // more ssh connect
   ]
 }
 ```
@@ -65,10 +89,24 @@ response example
 
 ```json
 {
-  "id": "same as request",
-  "result": null,
-  "error": null
-  // if no err else a string descibe the error
+  "id": "lll",
+  "error": null,
+  "result": [
+    {
+      "port": 22,
+      "host": "10.128.248.93",
+      "user": "cc",
+      "un_monitor": true,
+      "error": null
+    },
+    {
+      "port": 10022,
+      "host": "10.112.230.222",
+      "user": "chenchen",
+      "un_monitor": true,
+      "error": null
+    }
+  ]
 }
 ```
 
@@ -84,7 +122,9 @@ response example
     {
       "event": "cpu_info",
       "message": {
-        "ssh_key": "cc@10.128.248.93:22",
+        "port": 22,
+        "host": "10.128.248.93",
+        "user": "cc",
         "cpu_info": {
           "0": {
             "cpu_core_info": {
@@ -92,12 +132,12 @@ response example
                 "cpu_processor_info": {
                   "0": {
                     "processor": 0,
-                    "CPUMHz": 800,
+                    "CPUMHz": 3353.203,
                     "apicid": 0
                   },
                   "4": {
                     "processor": 4,
-                    "CPUMHz": 800,
+                    "CPUMHz": 3349.356,
                     "apicid": 1
                   }
                 },
@@ -107,12 +147,12 @@ response example
                 "cpu_processor_info": {
                   "1": {
                     "processor": 1,
-                    "CPUMHz": 800,
+                    "CPUMHz": 3352.969,
                     "apicid": 2
                   },
                   "5": {
                     "processor": 5,
-                    "CPUMHz": 800,
+                    "CPUMHz": 3350.782,
                     "apicid": 3
                   }
                 },
@@ -122,12 +162,12 @@ response example
                 "cpu_processor_info": {
                   "2": {
                     "processor": 2,
-                    "CPUMHz": 983.36,
+                    "CPUMHz": 3092.994,
                     "apicid": 4
                   },
                   "6": {
                     "processor": 6,
-                    "CPUMHz": 800,
+                    "CPUMHz": 1400,
                     "apicid": 5
                   }
                 },
@@ -137,12 +177,12 @@ response example
                 "cpu_processor_info": {
                   "3": {
                     "processor": 3,
-                    "CPUMHz": 2066.414,
+                    "CPUMHz": 3352.634,
                     "apicid": 6
                   },
                   "7": {
                     "processor": 7,
-                    "CPUMHz": 800,
+                    "CPUMHz": 3349.121,
                     "apicid": 7
                   }
                 },

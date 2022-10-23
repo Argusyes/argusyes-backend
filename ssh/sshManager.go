@@ -23,20 +23,23 @@ func newManager() *Manager {
 	}
 }
 
-func (m *Manager) getSSH(port int, host, user, passwd string) *SSH {
+func (m *Manager) getSSH(port int, host, user, passwd string) (*SSH, error) {
 	key := generalKey(port, host, user)
 	m.sshMapMutex.Lock()
 	defer m.sshMapMutex.Unlock()
 	ssh, ok := m.sshMap[key]
 
 	if ok {
-		return ssh
+		return ssh, nil
 	}
-	ssh = newSSH(port, host, user, passwd)
+	ssh, err := newSSH(port, host, user, passwd)
+	if err != nil {
+		return nil, err
+	}
 	m.sshMap[key] = ssh
 	ssh.startAllMonitor()
 	log.Printf("ssh client create %s", ssh.Key)
-	return ssh
+	return ssh, nil
 }
 
 func (m *Manager) deleteSSH(key string) {
@@ -45,9 +48,13 @@ func (m *Manager) deleteSSH(key string) {
 	m.sshMapMutex.Unlock()
 }
 
-func (m *Manager) RegisterAllMonitorListener(port int, host, user, passwd, wsKey string, listener *Listener) {
-	s := m.getSSH(port, host, user, passwd)
+func (m *Manager) RegisterAllMonitorListener(port int, host, user, passwd, wsKey string, listener *Listener) error {
+	s, err := m.getSSH(port, host, user, passwd)
+	if err != nil {
+		return err
+	}
 	s.RegisterCPUInfoListener(wsKey, listener.CPUInfoListener)
+	return nil
 }
 
 func (m *Manager) ClearListener(wsKey string) {

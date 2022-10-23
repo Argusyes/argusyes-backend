@@ -8,9 +8,11 @@ import (
 	"strings"
 )
 
-func parseCPUInfoMessage(sshKey, s string) (m message.CPUInfoMessage) {
+func parseCPUInfoMessage(port int, host, user, s string) (m message.CPUInfoMessage) {
 	m = message.CPUInfoMessage{
-		SSHKey:     sshKey,
+		Port:       port,
+		Host:       host,
+		User:       user,
 		CPUInfoMap: make(map[int64]message.CPUInfo),
 	}
 	cpus := strings.Split(s, "\r\n\r\n")
