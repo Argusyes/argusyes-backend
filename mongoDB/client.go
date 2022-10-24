@@ -23,13 +23,18 @@ type User struct {
 }
 
 type UserSSH struct {
-	Key      string `bson:"_id"`
-	UserName string `json:"user_name"`
-	Name     string `json:"name"`
-	Port     int    `json:"port"`
-	Host     string `json:"host"`
-	User     string `json:"user"`
-	Passwd   string `json:"passwd"`
+	Key      string `bson:"key"`
+	UserName string `json:"user_name" bson:"user_name"`
+	Name     string `json:"name" bson:"name"`
+	Port     int    `json:"port" bson:"port"`
+	Host     string `json:"host" bson:"host"`
+	User     string `json:"user" bson:"user"`
+	Passwd   string `json:"passwd" bson:"passwd"`
+}
+
+type UserSSHUpdater struct {
+	OldSSH UserSSH
+	NewSSH UserSSH
 }
 
 type MongoClient struct {
@@ -62,6 +67,16 @@ func init() {
 
 	userSSHCollection := mgoCli.Database("Argusyes").Collection("UserSSH")
 	userCollection := mgoCli.Database("Argusyes").Collection("User")
+	_, err = userSSHCollection.Indexes().CreateOne(
+		context.Background(),
+		mongo.IndexModel{
+			Keys:    bson.D{{Key: "key", Value: 1}},
+			Options: options.Index().SetUnique(true).SetName("UserSSHKeyIndex"),
+		},
+	)
+	if err != nil {
+		log.Fatalf("create index fail : %v", err)
+	}
 
 	Client = &MongoClient{
 		mongoCli:          mgoCli,
@@ -152,24 +167,72 @@ func (c *MongoClient) CheckUserToken(username, token string) error {
 }
 
 func (c *MongoClient) InsertUserSSH(userSSH []UserSSH) ([]string, error) {
-	docs := make([]interface{}, 0)
+	r := make([]string, 0)
+	errText := ""
 	for _, ssh := range userSSH {
 		ssh.Key = GeneralSSHId(ssh)
-		docs = append(docs, ssh)
+		_, err := c.userSSHCollection.InsertOne(context.TODO(), ssh)
+		if err != nil {
+			errText += fmt.Sprintf("insert fail %s : %v", ssh.Key, err)
+		} else {
+			r = append(r, ssh.Key)
+		}
+
 	}
-	ordered := false
-	result, err := c.userSSHCollection.InsertMany(context.TODO(), docs, &options.InsertManyOptions{Ordered: &ordered})
-	if result == nil {
-		errText := fmt.Sprintf("Insert fail : %v", err)
+	if errText == "" {
+		return r, nil
+	}
+	return r, errors.New(errText)
+}
+
+func (c *MongoClient) DeleteUserSSH(userSSH []UserSSH) ([]string, error) {
+
+	r := make([]string, 0)
+	errText := ""
+	for _, ssh := range userSSH {
+		ssh.Key = GeneralSSHId(ssh)
+		result, err := c.userSSHCollection.DeleteOne(context.TODO(), bson.M{"key": ssh.Key})
+		if err != nil || result.DeletedCount == 0 {
+			errText += fmt.Sprintf("delete fail %s : %v", ssh.Key, err)
+		} else {
+			r = append(r, ssh.Key)
+		}
+
+	}
+	if errText == "" {
+		return r, nil
+	}
+	return r, errors.New(errText)
+}
+
+func (c *MongoClient) UpdateUserSSH(userSSHUpdater []UserSSHUpdater) ([]string, error) {
+	r := make([]string, 0)
+	errText := ""
+	for _, u := range userSSHUpdater {
+		u.OldSSH.Key = GeneralSSHId(u.OldSSH)
+		u.NewSSH.Key = GeneralSSHId(u.NewSSH)
+		result, err := c.userSSHCollection.UpdateOne(context.TODO(), bson.D{{"key", u.OldSSH.Key}}, bson.D{{"$set", u.NewSSH}})
+		if err != nil || result.ModifiedCount == 0 {
+			errText += fmt.Sprintf("update fail %s : %v", u.OldSSH.Key, err)
+		}
+
+	}
+	if errText == "" {
+		return r, nil
+	}
+	return r, errors.New(errText)
+}
+
+func (c *MongoClient) SelectUserSSH(username string) ([]UserSSH, error) {
+	result, err := c.userSSHCollection.Find(context.TODO(), bson.D{{"user_name", username}})
+	if err != nil {
+		errText := fmt.Sprintf("Select fail %s : %v", username, err)
 		return nil, errors.New(errText)
 	}
-	r := make([]string, 0)
-	for _, id := range result.InsertedIDs {
-		r = append(r, id.(string))
+	var userSSH []UserSSH
+	if err = result.All(context.TODO(), &userSSH); err != nil {
+		errText := fmt.Sprintf("Select fail %s : %v", username, err)
+		return nil, errors.New(errText)
 	}
-	if err != nil {
-		errText := fmt.Sprintf("Insert fail : %v", err)
-		return r, errors.New(errText)
-	}
-	return r, nil
+	return userSSH, nil
 }

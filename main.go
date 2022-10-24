@@ -43,6 +43,9 @@ func main() {
 	router.Use(ginAuthMiddleware())
 	router.GET("/monitor", monitorHandler)
 	router.POST("/user/addSSH", addUserSSHHandler)
+	router.DELETE("/user/deleteSSH", deleteUserSSHHandler)
+	router.PUT("/user/updateSSH", updateUserSSHHandler)
+	router.GET("/user/selectSSH", selectUserSSHHandler)
 	router.POST("/user/register", registerHandler)
 	router.POST("/user/login", loginHandler)
 
