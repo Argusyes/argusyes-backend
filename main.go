@@ -2,17 +2,23 @@ package main
 
 import (
 	"fmt"
+	mapSet "github.com/deckarep/golang-set/v2"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/pelletier/go-toml"
 	"log"
 	"mongoDB"
 	"net/http"
+	"net/url"
 	"ssh"
+	"strings"
 	"wsocket"
 )
 
 var valid *validator.Validate
+
+const jwtSecret = "Argusyes"
 
 func init() {
 	log.SetFlags(log.Ltime | log.Lshortfile)
@@ -33,9 +39,12 @@ func main() {
 	addr := fmt.Sprintf("%s:%d", ip, port)
 
 	router := gin.New()
-	router.Use(ginMiddleware(allowOrigin))
+	router.Use(ginAllowOriginMiddleware(allowOrigin))
+	router.Use(ginAuthMiddleware())
 	router.GET("/monitor", monitorHandler)
 	router.POST("/user/addSSH", addUserSSHHandler)
+	router.POST("/user/register", registerHandler)
+	router.POST("/user/login", loginHandler)
 
 	wsocket.WsocketManager.RegisterMessageHandler(messageRouter)
 	wsocket.WsocketManager.RegisterCloseHandler(func(conn *wsocket.Connect) {
@@ -54,7 +63,7 @@ func monitorHandler(c *gin.Context) {
 	wsocket.WsocketManager.HandleNewConnect(c.Writer, c.Request)
 }
 
-func ginMiddleware(allowOrigin string) gin.HandlerFunc {
+func ginAllowOriginMiddleware(allowOrigin string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", allowOrigin)
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -70,4 +79,57 @@ func ginMiddleware(allowOrigin string) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func ginAuthMiddleware() gin.HandlerFunc {
+
+	abort := func(c *gin.Context, errText string) {
+		c.AbortWithStatusJSON(http.StatusForbidden, Response{
+			Code:    "403",
+			Message: &errText,
+		})
+	}
+
+	return func(c *gin.Context) {
+		if !isInWhiteList(c.Request.URL, c.Request.Method) {
+			strToken := c.Request.Header.Get("A-Token")
+			token, err := jwt.ParseWithClaims(strToken, &LoginRequest{}, func(token *jwt.Token) (interface{}, error) {
+				return []byte(jwtSecret), nil
+			})
+			if err != nil {
+				abort(c, fmt.Sprintf("Token auth fail : %v", err))
+				return
+			}
+			loginRequest, ok := token.Claims.(*LoginRequest)
+			if !ok {
+				abort(c, fmt.Sprintf("Token auth fail : %v", err))
+				return
+			}
+			if err := token.Claims.Valid(); err != nil {
+				abort(c, fmt.Sprintf("Token auth fail : %v", err))
+				return
+			}
+			if err := mongoDB.Client.CheckUserToken(loginRequest.UserName, strToken); err != nil {
+				abort(c, fmt.Sprintf("Other user has been login"))
+				return
+			}
+			c.Request.Header.Add("User-Name", loginRequest.UserName)
+		}
+		c.Next()
+	}
+}
+
+func isInWhiteList(url *url.URL, method string) bool {
+	whiteList := map[string]mapSet.Set[string]{
+		"/user/register": mapSet.NewSet("POST"),
+		"/user/login":    mapSet.NewSet("POST"),
+	}
+	queryUrl := strings.Split(fmt.Sprint(url), "?")[0]
+	if set, ok := whiteList[queryUrl]; ok {
+		if set.Contains(method) {
+			return true
+		}
+		return false
+	}
+	return false
 }

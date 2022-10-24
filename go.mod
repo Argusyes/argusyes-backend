@@ -12,8 +12,11 @@ replace (
 require ssh v0.0.0
 
 require (
+	github.com/deckarep/golang-set/v2 v2.1.0
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.8.1
-	github.com/goccy/go-json v0.9.7
+	github.com/go-playground/validator/v10 v10.11.1
+	github.com/json-iterator/go v1.1.12
 	github.com/pelletier/go-toml v1.9.5
 	message v0.0.0
 	mongoDB v0.0.0
@@ -24,11 +27,10 @@ require (
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
-	github.com/go-playground/validator/v10 v10.11.1 // indirect
+	github.com/goccy/go-json v0.9.7 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
-	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
