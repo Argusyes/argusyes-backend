@@ -11,13 +11,13 @@ import (
 )
 
 type Response struct {
-	Code    string      `json:"code"`
+	Code    int      `json:"code"`
 	Message *string     `json:"message"`
 	Data    interface{} `json:"data"`
 }
 
 type SelectUserSSHResponse struct {
-	Code    string                      `json:"code"`
+	Code    int                      `json:"code"`
 	Message *string                     `json:"message"`
 	Data    []SelectUserSSHResponseData `json:"data"`
 }
@@ -31,7 +31,7 @@ type SelectUserSSHResponseData struct {
 }
 
 type AddUserSSHResponse struct {
-	Code    string                   `json:"code"`
+	Code    int                   `json:"code"`
 	Message *string                  `json:"message"`
 	Data    []AddUserSSHResponseData `json:"data"`
 }
@@ -44,7 +44,7 @@ type AddUserSSHResponseData struct {
 }
 
 type DeleteUserSSHResponse struct {
-	Code    string                      `json:"code"`
+	Code    int                      `json:"code"`
 	Message *string                     `json:"message"`
 	Data    []DeleteUserSSHResponseData `json:"data"`
 }
@@ -57,7 +57,7 @@ type DeleteUserSSHResponseData struct {
 }
 
 type UpdateUserSSHResponse struct {
-	Code    string                      `json:"code"`
+	Code    int                      `json:"code"`
 	Message *string                     `json:"message"`
 	Data    []UpdateUserSSHResponseData `json:"data"`
 }
@@ -96,24 +96,24 @@ type UpdateUserSSHRequest struct {
 }
 
 type UpdateUserSSHRequestData struct {
-	OldPort   int    `json:"old_port" validate:"required"`
-	OldHost   string `json:"old_host" validate:"required,ip_addr"`
-	OldUser   string `json:"old_user" validate:"required"`
-	NewPort   int    `json:"new_port" validate:"required"`
-	NewHost   string `json:"new_host" validate:"required,ip_addr"`
-	NewUser   string `json:"new_user" validate:"required"`
-	NewName   string `json:"new_name" validate:"required"`
-	NewPasswd string `json:"new_passwd" validate:"required"`
+	OldPort   int    `json:"oldPort" validate:"required"`
+	OldHost   string `json:"oldHost" validate:"required,ip_addr"`
+	OldUser   string `json:"oldUser" validate:"required"`
+	NewPort   int    `json:"newPort" validate:"required"`
+	NewHost   string `json:"newHost" validate:"required,ip_addr"`
+	NewUser   string `json:"newUser" validate:"required"`
+	NewName   string `json:"newName" validate:"required"`
+	NewPasswd string `json:"newPasswd" validate:"required"`
 }
 
 type RegisterRequest struct {
-	UserName string `json:"user_name" validate:"required"`
+	UserName string `json:"username" validate:"required"`
 	Passwd   string `json:"passwd" validate:"required"`
 }
 
 type LoginRequest struct {
 	jwt.StandardClaims
-	UserName string `json:"user_name" validate:"required"`
+	UserName string `json:"username" validate:"required"`
 	Passwd   string `json:"passwd" validate:"required"`
 }
 
@@ -121,14 +121,14 @@ func requestJsonParseHelper(context *gin.Context, v interface{}) bool {
 	if err := context.BindJSON(v); err != nil {
 		errText := fmt.Sprintf("Request Json Parse Fail %v", err)
 		context.JSON(http.StatusBadRequest, Response{
-			Code:    "400",
+			Code:    400,
 			Message: &errText,
 		})
 		return false
 	} else if err := valid.Struct(v); err != nil {
 		errText := fmt.Sprintf("Request Validate Fail %v", err)
 		context.JSON(http.StatusBadRequest, Response{
-			Code:    "400",
+			Code:    400,
 			Message: &errText,
 		})
 		return false
@@ -153,13 +153,13 @@ func addUserSSHHandler(context *gin.Context) {
 		}
 		res, err := mongoDB.Client.InsertUserSSH(userSSH)
 		addUserSSHResponse := &AddUserSSHResponse{
-			Code:    "200",
+			Code:    200,
 			Message: nil,
 			Data:    make([]AddUserSSHResponseData, 0),
 		}
 		if err != nil {
 			errText := fmt.Sprintf("Insert SSH Fail : %v", err)
-			addUserSSHResponse.Code = "500"
+			addUserSSHResponse.Code = 500
 			addUserSSHResponse.Message = &errText
 		}
 		resSet := mapSet.NewSet(res...)
@@ -199,13 +199,13 @@ func deleteUserSSHHandler(context *gin.Context) {
 		}
 		res, err := mongoDB.Client.DeleteUserSSH(userSSH)
 		deleteUserSSHResponse := &DeleteUserSSHResponse{
-			Code:    "200",
+			Code:    200,
 			Message: nil,
 			Data:    make([]DeleteUserSSHResponseData, 0),
 		}
 		if err != nil {
 			errText := fmt.Sprintf("Delete SSH Fail : %v", err)
-			deleteUserSSHResponse.Code = "500"
+			deleteUserSSHResponse.Code = 500
 			deleteUserSSHResponse.Message = &errText
 		}
 		resSet := mapSet.NewSet(res...)
@@ -255,13 +255,13 @@ func updateUserSSHHandler(context *gin.Context) {
 		}
 		res, err := mongoDB.Client.UpdateUserSSH(userSSHUpdater)
 		updateUserSSHResponse := &UpdateUserSSHResponse{
-			Code:    "200",
+			Code:    200,
 			Message: nil,
 			Data:    make([]UpdateUserSSHResponseData, 0),
 		}
 		if err != nil {
 			errText := fmt.Sprintf("Update SSH Fail : %v", err)
-			updateUserSSHResponse.Code = "500"
+			updateUserSSHResponse.Code = 500
 			updateUserSSHResponse.Message = &errText
 		}
 		resSet := mapSet.NewSet(res...)
@@ -290,13 +290,13 @@ func selectUserSSHHandler(context *gin.Context) {
 	username := context.Request.Header.Get("User-Name")
 	res, err := mongoDB.Client.SelectUserSSH(username)
 	selectUserSSHResponse := &SelectUserSSHResponse{
-		Code:    "200",
+		Code:    200,
 		Message: nil,
 		Data:    make([]SelectUserSSHResponseData, 0),
 	}
 	if err != nil {
 		errText := fmt.Sprintf("Select SSH Fail : %v", err)
-		selectUserSSHResponse.Code = "500"
+		selectUserSSHResponse.Code = 500
 		selectUserSSHResponse.Message = &errText
 	}
 	for _, ssh := range res {
@@ -318,12 +318,12 @@ func registerHandler(context *gin.Context) {
 		if err := mongoDB.Client.InsertUser(user); err != nil {
 			errText := fmt.Sprintf("Insert User Fail %v", err)
 			context.JSON(http.StatusOK, Response{
-				Code:    "500",
+				Code:    500,
 				Message: &errText,
 			})
 		} else {
 			context.JSON(http.StatusOK, Response{
-				Code:    "200",
+				Code:    200,
 				Message: nil,
 			})
 		}
@@ -337,7 +337,7 @@ func loginHandler(context *gin.Context) {
 		if err := mongoDB.Client.CheckUserPasswd(user); err != nil {
 			errText := fmt.Sprintf("Check User Fail %v", err)
 			context.JSON(http.StatusOK, Response{
-				Code:    "500",
+				Code:    500,
 				Message: &errText,
 			})
 		} else {
@@ -347,18 +347,18 @@ func loginHandler(context *gin.Context) {
 			if token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, loginRequest).SignedString([]byte(jwtSecret)); err != nil {
 				errText := fmt.Sprintf("Create User Token Fail %v", err)
 				context.JSON(http.StatusOK, Response{
-					Code:    "500",
+					Code:    500,
 					Message: &errText,
 				})
 			} else if err := mongoDB.Client.UpdateUserToken(user.UserName, token); err != nil {
 				errText := fmt.Sprintf("Update User Token Fail %v", err)
 				context.JSON(http.StatusOK, Response{
-					Code:    "500",
+					Code:    500,
 					Message: &errText,
 				})
 			} else {
 				context.JSON(http.StatusOK, Response{
-					Code:    "200",
+					Code:    200,
 					Message: nil,
 					Data:    token,
 				})

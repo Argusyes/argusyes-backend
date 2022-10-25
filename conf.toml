@@ -5,4 +5,4 @@ Host="mongodb://10.112.230.222:27017"
 [server]
 IP=""
 Port=9097
-AllowOrigin="http://127.0.0.1:5000"
+AllowOrigin="http://localhost:5173"

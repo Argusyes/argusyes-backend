@@ -88,7 +88,7 @@ func ginAuthMiddleware() gin.HandlerFunc {
 
 	abort := func(c *gin.Context, errText string) {
 		c.AbortWithStatusJSON(http.StatusForbidden, Response{
-			Code:    "403",
+			Code:    403,
 			Message: &errText,
 		})
 	}

@@ -16,7 +16,7 @@ import (
 )
 
 type User struct {
-	UserName string `json:"user_name" bson:"_id"`
+	UserName string `json:"userName" bson:"_id"`
 	Passwd   string `json:"passwd" bson:"passwd"`
 	Salt     string `bson:"salt"`
 	Token    string `json:"token" bson:"token"`
@@ -24,7 +24,7 @@ type User struct {
 
 type UserSSH struct {
 	Key      string `bson:"key"`
-	UserName string `json:"user_name" bson:"user_name"`
+	UserName string `json:"username" bson:"username"`
 	Name     string `json:"name" bson:"name"`
 	Port     int    `json:"port" bson:"port"`
 	Host     string `json:"host" bson:"host"`
@@ -224,7 +224,7 @@ func (c *MongoClient) UpdateUserSSH(userSSHUpdater []UserSSHUpdater) ([]string, 
 }
 
 func (c *MongoClient) SelectUserSSH(username string) ([]UserSSH, error) {
-	result, err := c.userSSHCollection.Find(context.TODO(), bson.D{{"user_name", username}})
+	result, err := c.userSSHCollection.Find(context.TODO(), bson.D{{"username", username}})
 	if err != nil {
 		errText := fmt.Sprintf("Select fail %s : %v", username, err)
 		return nil, errors.New(errText)

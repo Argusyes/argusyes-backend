@@ -79,7 +79,7 @@ type WSUnMonitorSSHResponseResult struct {
 	Port      int     `json:"port" validate:"required"`
 	Host      string  `json:"host" validate:"ip_addr"`
 	User      string  `json:"user" validate:"required"`
-	UnMonitor bool    `json:"un_monitor" validate:"required"`
+	UnMonitor bool    `json:"unMonitor" validate:"required"`
 	Error     *string `json:"error"`
 }
 
@@ -93,7 +93,7 @@ func getSSHListener(conn *wsocket.Connect) *ssh.Listener {
 					Event   string                 `json:"event" validate:"required"`
 					Message message.CPUInfoMessage `json:"message" validate:"required"`
 				}{{
-					Event:   "cpu_info",
+					Event:   "cpuInfo",
 					Message: m,
 				}},
 			}
@@ -190,7 +190,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 		return
 	}
 	switch wsRequest.Method {
-	case "ssh.start_monitor":
+	case "ssh.startMonitor":
 		wsMonitorSSHRequest := &WSMonitorSSHRequest{}
 		if ok := messageJsonParseHelper(*wsRequest.Id, conn, msg, wsMonitorSSHRequest); !ok {
 			return
@@ -220,7 +220,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsMonitorSSHResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
 		}
-	case "ssh.stop_monitor":
+	case "ssh.stopMonitor":
 
 		wsUnMonitorSSHRequest := &WSUnMonitorSSHRequest{}
 		if ok := messageJsonParseHelper(*wsRequest.Id, conn, msg, wsUnMonitorSSHRequest); !ok {
