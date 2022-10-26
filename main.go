@@ -48,6 +48,7 @@ func main() {
 	router.GET("/user/selectSSH", selectUserSSHHandler)
 	router.POST("/user/register", registerHandler)
 	router.POST("/user/login", loginHandler)
+	router.PUT("/user/changePasswd", changePasswdHandler)
 
 	wsocket.WsocketManager.RegisterMessageHandler(messageRouter)
 	wsocket.WsocketManager.RegisterCloseHandler(func(conn *wsocket.Connect) {

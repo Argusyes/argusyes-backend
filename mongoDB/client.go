@@ -166,6 +166,19 @@ func (c *MongoClient) CheckUserToken(username, token string) error {
 	return nil
 }
 
+func (c *MongoClient) ChangeUserPasswd(user User) interface{} {
+
+	salt := nextSalt()
+
+	filter := bson.D{{"_id", user.UserName}}
+	update := bson.D{{"$set", bson.D{{"token", nil}, {"passwd", MD5V(user.Passwd, salt)}, {"salt", salt}}}}
+	result, err := c.userCollection.UpdateOne(context.TODO(), filter, update)
+	if err != nil || result.UpsertedCount == 1 {
+		return errors.New("update token fail" + err.Error())
+	}
+	return nil
+}
+
 func (c *MongoClient) InsertUserSSH(userSSH []UserSSH) ([]string, error) {
 	r := make([]string, 0)
 	errText := ""

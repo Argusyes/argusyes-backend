@@ -117,6 +117,10 @@ type LoginRequest struct {
 	Passwd   string `json:"passwd" validate:"required"`
 }
 
+type ChangePasswdRequest struct {
+	Passwd string `json:"passwd" validate:"required"`
+}
+
 func requestJsonParseHelper(context *gin.Context, v interface{}) bool {
 	if err := context.BindJSON(v); err != nil {
 		errText := fmt.Sprintf("Request Json Parse Fail %v", err)
@@ -363,6 +367,26 @@ func loginHandler(context *gin.Context) {
 					Data:    token,
 				})
 			}
+		}
+	}
+}
+
+func changePasswdHandler(context *gin.Context) {
+	username := context.Request.Header.Get("User-Name")
+	changePasswdRequest := &ChangePasswdRequest{}
+	if ok := requestJsonParseHelper(context, changePasswdRequest); ok {
+		user := mongoDB.User{UserName: username, Passwd: changePasswdRequest.Passwd}
+		if err := mongoDB.Client.ChangeUserPasswd(user); err != nil {
+			errText := fmt.Sprintf("Change User Fail %v", err)
+			context.JSON(http.StatusOK, Response{
+				Code:    500,
+				Message: &errText,
+			})
+		} else {
+			context.JSON(http.StatusOK, Response{
+				Code:    200,
+				Message: nil,
+			})
 		}
 	}
 }
