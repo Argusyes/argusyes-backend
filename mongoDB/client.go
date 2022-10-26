@@ -236,8 +236,12 @@ func (c *MongoClient) UpdateUserSSH(userSSHUpdater []UserSSHUpdater) ([]string, 
 	return r, errors.New(errText)
 }
 
-func (c *MongoClient) SelectUserSSH(username string) ([]UserSSH, error) {
-	result, err := c.userSSHCollection.Find(context.TODO(), bson.D{{"username", username}})
+func (c *MongoClient) SelectUserSSH(username string, name *string) ([]UserSSH, error) {
+	filter := bson.D{{"username", username}}
+	if name != nil && *name != "" {
+		filter = append(filter, bson.E{Key: "name", Value: *name})
+	}
+	result, err := c.userSSHCollection.Find(context.TODO(), filter)
 	if err != nil {
 		errText := fmt.Sprintf("Select fail %s : %v", username, err)
 		return nil, errors.New(errText)
