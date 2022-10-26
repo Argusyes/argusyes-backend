@@ -11,13 +11,13 @@ import (
 )
 
 type Response struct {
-	Code    int      `json:"code"`
+	Code    int         `json:"code"`
 	Message *string     `json:"message"`
 	Data    interface{} `json:"data"`
 }
 
 type SelectUserSSHResponse struct {
-	Code    int                      `json:"code"`
+	Code    int                         `json:"code"`
 	Message *string                     `json:"message"`
 	Data    []SelectUserSSHResponseData `json:"data"`
 }
@@ -31,7 +31,7 @@ type SelectUserSSHResponseData struct {
 }
 
 type AddUserSSHResponse struct {
-	Code    int                   `json:"code"`
+	Code    int                      `json:"code"`
 	Message *string                  `json:"message"`
 	Data    []AddUserSSHResponseData `json:"data"`
 }
@@ -44,7 +44,7 @@ type AddUserSSHResponseData struct {
 }
 
 type DeleteUserSSHResponse struct {
-	Code    int                      `json:"code"`
+	Code    int                         `json:"code"`
 	Message *string                     `json:"message"`
 	Data    []DeleteUserSSHResponseData `json:"data"`
 }
@@ -57,7 +57,7 @@ type DeleteUserSSHResponseData struct {
 }
 
 type UpdateUserSSHResponse struct {
-	Code    int                      `json:"code"`
+	Code    int                         `json:"code"`
 	Message *string                     `json:"message"`
 	Data    []UpdateUserSSHResponseData `json:"data"`
 }
@@ -74,11 +74,11 @@ type AddUserSSHRequest struct {
 }
 
 type AddUserSSHRequestData struct {
-	Name   string `json:"name" validate:"required"`
-	Port   int    `json:"port" validate:"required"`
-	Host   string `json:"host" validate:"required,ip_addr"`
-	User   string `json:"user" validate:"required"`
-	Passwd string `json:"passwd" validate:"required"`
+	Name   string  `json:"name" validate:"required"`
+	Port   int     `json:"port" validate:"required"`
+	Host   string  `json:"host" validate:"required,ip_addr"`
+	User   string  `json:"user" validate:"required"`
+	Passwd *string `json:"passwd" validate:"required"`
 }
 
 type DeleteUserSSHRequest struct {
@@ -96,14 +96,14 @@ type UpdateUserSSHRequest struct {
 }
 
 type UpdateUserSSHRequestData struct {
-	OldPort   int    `json:"oldPort" validate:"required"`
-	OldHost   string `json:"oldHost" validate:"required,ip_addr"`
-	OldUser   string `json:"oldUser" validate:"required"`
-	NewPort   int    `json:"newPort" validate:"required"`
-	NewHost   string `json:"newHost" validate:"required,ip_addr"`
-	NewUser   string `json:"newUser" validate:"required"`
-	NewName   string `json:"newName" validate:"required"`
-	NewPasswd string `json:"newPasswd" validate:"required"`
+	OldPort   int     `json:"oldPort" validate:"required"`
+	OldHost   string  `json:"oldHost" validate:"required,ip_addr"`
+	OldUser   string  `json:"oldUser" validate:"required"`
+	NewPort   int     `json:"newPort" validate:"required"`
+	NewHost   string  `json:"newHost" validate:"required,ip_addr"`
+	NewUser   string  `json:"newUser" validate:"required"`
+	NewName   string  `json:"newName" validate:"required"`
+	NewPasswd *string `json:"newPasswd" validate:"required"`
 }
 
 type RegisterRequest struct {
@@ -148,7 +148,7 @@ func addUserSSHHandler(context *gin.Context) {
 				Port:     ssh.Port,
 				Host:     ssh.Host,
 				User:     ssh.User,
-				Passwd:   ssh.Passwd,
+				Passwd:   *ssh.Passwd,
 			})
 		}
 		res, err := mongoDB.Client.InsertUserSSH(userSSH)
@@ -248,7 +248,7 @@ func updateUserSSHHandler(context *gin.Context) {
 					Port:     ssh.NewPort,
 					Host:     ssh.NewHost,
 					User:     ssh.NewUser,
-					Passwd:   ssh.NewPasswd,
+					Passwd:   *ssh.NewPasswd,
 					Name:     ssh.NewName,
 				},
 			})
