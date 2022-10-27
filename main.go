@@ -127,6 +127,7 @@ func isInWhiteList(url *url.URL, method string) bool {
 	whiteList := map[string]mapSet.Set[string]{
 		"/user/register": mapSet.NewSet("POST"),
 		"/user/login":    mapSet.NewSet("POST"),
+		"/monitor":       mapSet.NewSet("GET"),
 	}
 	queryUrl := strings.Split(fmt.Sprint(url), "?")[0]
 	if set, ok := whiteList[queryUrl]; ok {

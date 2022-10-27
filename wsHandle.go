@@ -44,8 +44,8 @@ type WSNotificationRequest struct {
 	Id     *string `json:"id"`
 	Method string  `json:"method" validate:"required"`
 	Params []struct {
-		Event   string                 `json:"event" validate:"required"`
-		Message message.CPUInfoMessage `json:"message" validate:"required"`
+		Event   string      `json:"event" validate:"required"`
+		Message interface{} `json:"message" validate:"required"`
 	} `json:"params" validate:"required,dive"`
 }
 
@@ -90,10 +90,29 @@ func getSSHListener(conn *wsocket.Connect) *ssh.Listener {
 				Id:     nil,
 				Method: "ssh.notification",
 				Params: []struct {
-					Event   string                 `json:"event" validate:"required"`
-					Message message.CPUInfoMessage `json:"message" validate:"required"`
+					Event   string      `json:"event" validate:"required"`
+					Message interface{} `json:"message" validate:"required"`
 				}{{
 					Event:   "cpuInfo",
+					Message: m,
+				}},
+			}
+
+			requestBytes, err := json.Marshal(request)
+			if err != nil {
+				log.Fatalf("json parse fail : %v", err)
+			}
+			conn.WriteMessage(requestBytes)
+		},
+		CPUPerformanceListener: func(m message.CPUPerformanceMessage) {
+			request := &WSNotificationRequest{
+				Id:     nil,
+				Method: "ssh.notification",
+				Params: []struct {
+					Event   string      `json:"event" validate:"required"`
+					Message interface{} `json:"message" validate:"required"`
+				}{{
+					Event:   "cpuPerformance",
 					Message: m,
 				}},
 			}
@@ -154,6 +173,7 @@ func messageJsonStringifyHelper(v interface{}) ([]byte, bool) {
 }
 
 func messageRouter(conn *wsocket.Connect, msg []byte) {
+	log.Printf("%s handle message %s", conn.Key, string(msg))
 	ms := string(msg)
 	if strings.Contains(ms, "method") {
 		handleRequest(conn, msg)
@@ -191,6 +211,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 	}
 	switch wsRequest.Method {
 	case "ssh.startMonitor":
+		log.Printf("%s handle ssh.startMonitior", conn.Key)
 		wsMonitorSSHRequest := &WSMonitorSSHRequest{}
 		if ok := messageJsonParseHelper(*wsRequest.Id, conn, msg, wsMonitorSSHRequest); !ok {
 			return

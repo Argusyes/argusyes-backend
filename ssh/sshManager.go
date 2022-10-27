@@ -54,11 +54,13 @@ func (m *Manager) RegisterAllMonitorListener(port int, host, user, passwd, wsKey
 		return err
 	}
 	s.RegisterCPUInfoListener(wsKey, listener.CPUInfoListener)
+	s.RegisterCPUPerformanceListener(wsKey, listener.CPUPerformanceListener)
 	return nil
 }
 
 func (m *Manager) ClearListener(wsKey string) {
 	for _, v := range m.sshMap {
+		v.RemoveCPUPerformanceListener(wsKey)
 		v.RemoveCPUInfoListener(wsKey)
 		if len(v.cpuInfoClient.cpuInfoListener) == 0 {
 			v.Close()
@@ -74,6 +76,7 @@ func (m *Manager) RemoveSSHListener(port int, host, user, wsKey string) {
 	if !ok {
 		return
 	}
+	v.RemoveCPUPerformanceListener(wsKey)
 	v.RemoveCPUInfoListener(wsKey)
 	if len(v.cpuInfoClient.cpuInfoListener) == 0 {
 		m.deleteSSH(sshKey)

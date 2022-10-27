@@ -12,19 +12,25 @@ import (
 )
 
 type SSH struct {
-	Key           string
-	Port          int
-	Host          string
-	User          string
-	sshClient     *ssh.Client
-	stop          chan int
-	wg            sync.WaitGroup
-	cpuInfoClient CPUInfoClient
+	Key                  string
+	Port                 int
+	Host                 string
+	User                 string
+	sshClient            *ssh.Client
+	stop                 chan int
+	wg                   sync.WaitGroup
+	cpuInfoClient        CPUInfoClient
+	cpuPerformanceClient CPUPerformanceClient
 }
 
 type CPUInfoClient struct {
 	cpuInfoListener map[string]message.CPUInfoListener
 	mutex           sync.Mutex
+}
+
+type CPUPerformanceClient struct {
+	cpuPerformanceListener map[string]message.CPUPerformanceListener
+	mutex                  sync.Mutex
 }
 
 const XTERM = "xterm"
@@ -54,6 +60,9 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		stop:      make(chan int),
 		cpuInfoClient: CPUInfoClient{
 			cpuInfoListener: make(map[string]message.CPUInfoListener, 0),
+		},
+		cpuPerformanceClient: CPUPerformanceClient{
+			cpuPerformanceListener: make(map[string]message.CPUPerformanceListener, 0),
 		},
 	}, nil
 }
@@ -94,6 +103,8 @@ func closeSession(where string, session *ssh.Session) {
 func (h *SSH) startAllMonitor() {
 	h.wg.Add(1)
 	go h.monitorCPUInfo()
+	h.wg.Add(1)
+	go h.monitorCPUPerformance()
 }
 
 func (h *SSH) RegisterCPUInfoListener(key string, listener message.CPUInfoListener) {
@@ -133,6 +144,53 @@ func (h *SSH) monitorCPUInfo() {
 				l(m)
 			}
 			h.cpuInfoClient.mutex.Unlock()
+		}
+		closeSession(where, session)
+		time.Sleep(time.Second)
+	}
+}
+
+func (h *SSH) RegisterCPUPerformanceListener(key string, listener message.CPUPerformanceListener) {
+	h.cpuPerformanceClient.mutex.Lock()
+	defer h.cpuPerformanceClient.mutex.Unlock()
+	h.cpuPerformanceClient.cpuPerformanceListener[key] = listener
+}
+
+func (h *SSH) RemoveCPUPerformanceListener(key string) {
+	h.cpuPerformanceClient.mutex.Lock()
+	defer h.cpuPerformanceClient.mutex.Unlock()
+	delete(h.cpuPerformanceClient.cpuPerformanceListener, key)
+}
+
+func (h *SSH) monitorCPUPerformance() {
+
+	where := "cpu performance"
+	old := ""
+	for {
+		session := h.newSession(where)
+		select {
+		case s, ok := <-h.stop:
+			if !ok {
+				h.wg.Done()
+				closeSession(where, session)
+				return
+			} else {
+				log.Printf("Unexpect recv %d", s)
+			}
+		default:
+			s, err := session.Output("cat /proc/stat")
+			if err != nil {
+				log.Printf("Run %s command fail : %v", where, err)
+			}
+			if old != "" {
+				m := parseCPUPerformanceMessage(h.Port, h.Host, h.User, old, string(s))
+				h.cpuPerformanceClient.mutex.Lock()
+				for _, l := range h.cpuPerformanceClient.cpuPerformanceListener {
+					l(m)
+				}
+				h.cpuPerformanceClient.mutex.Unlock()
+			}
+			old = string(s)
 		}
 		closeSession(where, session)
 		time.Sleep(time.Second)
