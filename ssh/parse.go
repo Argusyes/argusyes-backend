@@ -178,7 +178,7 @@ func parseCPUInfoMessage(port int, host, user, s string) (m message.CPUInfoMessa
 
 func parseCPUPerformanceMessage(port int, host, user, old, new string) message.CPUPerformanceMessage {
 	// Linux 时间片默认为 10ms
-	jiffies := int64(1)
+	jiffies := int64(10)
 	m := message.CPUPerformanceMessage{
 		Port:              port,
 		Host:              host,
@@ -195,19 +195,20 @@ func parseCPUPerformanceMessage(port int, host, user, old, new string) message.C
 	newResult := reg.FindAllStringSubmatch(new, -1)
 
 	// 运行时间
-	totalCPUTime := int64(0)
+	newTotalCPUTime := int64(0)
 	for i := 2; i < len(newResult[0]); i++ {
-		totalCPUTime += parseInt64(newResult[0][i])
+		newTotalCPUTime += parseInt64(newResult[0][i])
 	}
-	totalCPUTime *= jiffies
-	if totalCPUTime > 60*60*24 {
-		m.Total.TotalTime = fmt.Sprintf("%dD", totalCPUTime/1000/60/60/24)
-	} else if totalCPUTime > 60*60 {
-		m.Total.TotalTime = fmt.Sprintf("%dH", totalCPUTime/1000/60/60)
-	} else if totalCPUTime > 60 {
-		m.Total.TotalTime = fmt.Sprintf("%dMin", totalCPUTime/1000/60)
+	totalCPUTime := newTotalCPUTime * jiffies
+	coreNum := int64(len(newResult) - 1)
+	if totalCPUTime > coreNum*1000*60*60*24 {
+		m.Total.TotalTime = fmt.Sprintf("%dD", totalCPUTime/coreNum/1000/60/60/24)
+	} else if totalCPUTime > coreNum*1000*60*60 {
+		m.Total.TotalTime = fmt.Sprintf("%dH", totalCPUTime/coreNum/1000/60/60)
+	} else if totalCPUTime > coreNum*1000*60 {
+		m.Total.TotalTime = fmt.Sprintf("%dMin", totalCPUTime/coreNum/1000/60)
 	} else {
-		m.Total.TotalTime = fmt.Sprintf("%dS", totalCPUTime/1000)
+		m.Total.TotalTime = fmt.Sprintf("%dS", totalCPUTime/coreNum/1000)
 	}
 
 	// 利用率
@@ -215,8 +216,35 @@ func parseCPUPerformanceMessage(port int, host, user, old, new string) message.C
 	for i := 2; i < len(oldResult[0]); i++ {
 		oldTotalCPUTime += parseInt64(oldResult[0][i])
 	}
-	oldTotalCPUTime *= jiffies
-	m.Total.Utilization = float64(100) - (float64(100*jiffies*(parseInt64(newResult[0][5])-parseInt64(oldResult[0][5]))) / float64(totalCPUTime-oldTotalCPUTime))
+	diff := float64(newTotalCPUTime - oldTotalCPUTime)
+	m.Total.Utilization = float64(100) - float64(100*(parseInt64(newResult[0][5])-parseInt64(oldResult[0][5])))/diff
+	m.Total.Free = float64(100*(parseInt64(newResult[0][5])-parseInt64(oldResult[0][5]))) / diff
+	m.Total.System = float64(100*(parseInt64(newResult[0][4])-parseInt64(oldResult[0][4]))) / diff
+	m.Total.User = float64(100*(parseInt64(newResult[0][2])-parseInt64(oldResult[0][2]))) / diff
+	m.Total.IO = float64(100*(parseInt64(newResult[0][6])-parseInt64(oldResult[0][6]))) / diff
+	m.Total.Steal = float64(100*(parseInt64(newResult[0][9])-parseInt64(oldResult[0][9]))) / diff
+
+	for i := 1; i < len(oldResult); i++ {
+		pOldTotalCPUTime := int64(0)
+		for j := 2; j < len(oldResult[i]); j++ {
+			pOldTotalCPUTime += parseInt64(oldResult[i][j])
+		}
+		pNewTotalCPUTime := int64(0)
+		for j := 2; j < len(newResult[i]); j++ {
+			pNewTotalCPUTime += parseInt64(newResult[i][j])
+		}
+		pDiff := float64(pNewTotalCPUTime - pOldTotalCPUTime)
+		processor := parseInt64(oldResult[i][1])
+		c := message.CPUPerformance{}
+		c.Processor = processor
+		c.Utilization = float64(100) - float64(100*(parseInt64(newResult[i][5])-parseInt64(oldResult[i][5])))/pDiff
+		c.Free = float64(100*(parseInt64(newResult[i][5])-parseInt64(oldResult[i][5]))) / pDiff
+		c.System = float64(100*(parseInt64(newResult[i][4])-parseInt64(oldResult[i][4]))) / pDiff
+		c.User = float64(100*(parseInt64(newResult[i][2])-parseInt64(oldResult[i][2]))) / pDiff
+		c.IO = float64(100*(parseInt64(newResult[i][6])-parseInt64(oldResult[i][6]))) / pDiff
+		c.Steal = float64(100*(parseInt64(newResult[i][9])-parseInt64(oldResult[i][9]))) / pDiff
+		m.CPUPerformanceMap[processor] = c
+	}
 	return m
 }
 

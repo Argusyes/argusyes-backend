@@ -69,7 +69,18 @@ type CPUPerformanceMessage struct {
 type CPUPerformanceTotal struct {
 	TotalTime   string  `json:"totalTime"`
 	Utilization float64 `json:"utilization"`
+	Free        float64 `json:"free"`
+	System      float64 `json:"system"`
+	User        float64 `json:"user"`
+	IO          float64 `json:"IO"`
+	Steal       float64 `json:"steal"`
 }
 type CPUPerformance struct {
-	Processor int64 `json:"processor"`
+	Processor   int64   `json:"processor"`
+	Utilization float64 `json:"utilization"`
+	Free        float64 `json:"free"`
+	System      float64 `json:"system"`
+	User        float64 `json:"user"`
+	IO          float64 `json:"IO"`
+	Steal       float64 `json:"steal"`
 }
