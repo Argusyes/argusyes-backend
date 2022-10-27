@@ -106,10 +106,6 @@ type UpdateUserSSHRequestData struct {
 	NewPasswd *string `json:"newPasswd" validate:"required"`
 }
 
-type SelectUserSSHRequest struct {
-	Name *string `json:"name"`
-}
-
 type RegisterRequest struct {
 	UserName string `json:"username" validate:"required"`
 	Passwd   string `json:"passwd" validate:"required"`
@@ -295,31 +291,30 @@ func updateUserSSHHandler(context *gin.Context) {
 }
 
 func selectUserSSHHandler(context *gin.Context) {
-	selectUserSSHRequest := &SelectUserSSHRequest{}
-	if ok := requestJsonParseHelper(context, selectUserSSHRequest); ok {
-		username := context.Request.Header.Get("User-Name")
-		res, err := mongoDB.Client.SelectUserSSH(username, selectUserSSHRequest.Name)
-		selectUserSSHResponse := &SelectUserSSHResponse{
-			Code:    200,
-			Message: nil,
-			Data:    make([]SelectUserSSHResponseData, 0),
-		}
-		if err != nil {
-			errText := fmt.Sprintf("Select SSH Fail : %v", err)
-			selectUserSSHResponse.Code = 500
-			selectUserSSHResponse.Message = &errText
-		}
-		for _, ssh := range res {
-			selectUserSSHResponse.Data = append(selectUserSSHResponse.Data, SelectUserSSHResponseData{
-				Port:   ssh.Port,
-				Host:   ssh.Host,
-				User:   ssh.User,
-				Name:   ssh.Name,
-				Passwd: ssh.Passwd,
-			})
-		}
-		context.JSON(http.StatusOK, selectUserSSHResponse)
+
+	name := context.DefaultQuery("name", "")
+	username := context.Request.Header.Get("User-Name")
+	res, err := mongoDB.Client.SelectUserSSH(username, name)
+	selectUserSSHResponse := &SelectUserSSHResponse{
+		Code:    200,
+		Message: nil,
+		Data:    make([]SelectUserSSHResponseData, 0),
 	}
+	if err != nil {
+		errText := fmt.Sprintf("Select SSH Fail : %v", err)
+		selectUserSSHResponse.Code = 500
+		selectUserSSHResponse.Message = &errText
+	}
+	for _, ssh := range res {
+		selectUserSSHResponse.Data = append(selectUserSSHResponse.Data, SelectUserSSHResponseData{
+			Port:   ssh.Port,
+			Host:   ssh.Host,
+			User:   ssh.User,
+			Name:   ssh.Name,
+			Passwd: ssh.Passwd,
+		})
+	}
+	context.JSON(http.StatusOK, selectUserSSHResponse)
 }
 
 func registerHandler(context *gin.Context) {
