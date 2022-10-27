@@ -67,8 +67,8 @@ type CPUPerformanceMessage struct {
 }
 
 type CPUPerformanceTotal struct {
-	TotalTime   string `json:"totalTime"`
-	Utilization string `json:"utilization"`
+	TotalTime   string  `json:"totalTime"`
+	Utilization float64 `json:"utilization"`
 }
 type CPUPerformance struct {
 	Processor int64 `json:"processor"`

@@ -3,10 +3,12 @@ package ssh
 import (
 	"errors"
 	"fmt"
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
-	"io"
+	"io/ioutil"
 	"log"
 	"message"
+	"os"
 	"sync"
 	"time"
 )
@@ -17,6 +19,7 @@ type SSH struct {
 	Host                 string
 	User                 string
 	sshClient            *ssh.Client
+	sftpClient           *sftp.Client
 	stop                 chan int
 	wg                   sync.WaitGroup
 	cpuInfoClient        CPUInfoClient
@@ -51,13 +54,21 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		log.Printf(errText)
 		return nil, errors.New(errText)
 	}
+	sftpClient, err := sftp.NewClient(sshClient)
+	if err != nil {
+		errText := fmt.Sprintf("Create sftp client %s fail : %v", generalKey(port, host, user), err)
+		log.Printf(errText)
+		_ = sshClient.Close()
+		return nil, errors.New(errText)
+	}
 	return &SSH{
-		Key:       generalKey(port, host, user),
-		Port:      port,
-		Host:      host,
-		User:      user,
-		sshClient: sshClient,
-		stop:      make(chan int),
+		Key:        generalKey(port, host, user),
+		Port:       port,
+		Host:       host,
+		User:       user,
+		sshClient:  sshClient,
+		sftpClient: sftpClient,
+		stop:       make(chan int),
 		cpuInfoClient: CPUInfoClient{
 			cpuInfoListener: make(map[string]message.CPUInfoListener, 0),
 		},
@@ -70,33 +81,13 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 func (h *SSH) Close() {
 	close(h.stop)
 	h.wg.Wait()
-	err := h.sshClient.Close()
+	err := h.sftpClient.Close()
 	if err != nil {
-		log.Fatalf("SSH cleint close fail : %v", err)
+		log.Printf("sftp client close fail : %v", err)
 	}
-}
-
-func (h *SSH) newSession(where string) (session *ssh.Session) {
-	session, err := h.sshClient.NewSession()
+	err = h.sshClient.Close()
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	modes := ssh.TerminalModes{
-		ssh.ECHO: 0,
-	}
-
-	if err := session.RequestPty(XTERM, 50, 80, modes); err != nil {
-		log.Fatalf("Request %s session pty fail : %v", where, err)
-	}
-
-	return
-}
-
-func closeSession(where string, session *ssh.Session) {
-	err := session.Close()
-	if err != nil && err != io.EOF {
-		log.Fatalf("Close %s session fail : %v", where, err)
+		log.Printf("ssh client close fail : %v", err)
 	}
 }
 
@@ -123,20 +114,23 @@ func (h *SSH) monitorCPUInfo() {
 
 	where := "cpu info"
 	for {
-		session := h.newSession(where)
 		select {
 		case s, ok := <-h.stop:
 			if !ok {
 				h.wg.Done()
-				closeSession(where, session)
 				return
 			} else {
 				log.Printf("Unexpect recv %d", s)
 			}
 		default:
-			s, err := session.Output("cat /proc/cpuinfo")
+			srcFile, err := h.sftpClient.OpenFile("/proc/cpuinfo", os.O_RDONLY)
 			if err != nil {
-				log.Printf("Run %s command fail : %v", where, err)
+				log.Printf("Read %s file fail : %v", where, err)
+			}
+			s, err := ioutil.ReadAll(srcFile)
+			err = srcFile.Close()
+			if err != nil {
+				log.Printf("Close %s file fail : %v", where, err)
 			}
 			m := parseCPUInfoMessage(h.Port, h.Host, h.User, string(s))
 			h.cpuInfoClient.mutex.Lock()
@@ -145,8 +139,7 @@ func (h *SSH) monitorCPUInfo() {
 			}
 			h.cpuInfoClient.mutex.Unlock()
 		}
-		closeSession(where, session)
-		time.Sleep(time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -167,20 +160,23 @@ func (h *SSH) monitorCPUPerformance() {
 	where := "cpu performance"
 	old := ""
 	for {
-		session := h.newSession(where)
 		select {
 		case s, ok := <-h.stop:
 			if !ok {
 				h.wg.Done()
-				closeSession(where, session)
 				return
 			} else {
 				log.Printf("Unexpect recv %d", s)
 			}
 		default:
-			s, err := session.Output("cat /proc/stat")
+			srcFile, err := h.sftpClient.OpenFile("/proc/stat", os.O_RDONLY)
 			if err != nil {
-				log.Printf("Run %s command fail : %v", where, err)
+				log.Printf("Read %s file fail : %v", where, err)
+			}
+			s, err := ioutil.ReadAll(srcFile)
+			err = srcFile.Close()
+			if err != nil {
+				log.Printf("Close %s file fail : %v", where, err)
 			}
 			if old != "" {
 				m := parseCPUPerformanceMessage(h.Port, h.Host, h.User, old, string(s))
@@ -192,7 +188,6 @@ func (h *SSH) monitorCPUPerformance() {
 			}
 			old = string(s)
 		}
-		closeSession(where, session)
-		time.Sleep(time.Second)
+		time.Sleep(3 * time.Second)
 	}
 }

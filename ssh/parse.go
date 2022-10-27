@@ -16,14 +16,14 @@ func parseCPUInfoMessage(port int, host, user, s string) (m message.CPUInfoMessa
 		User:       user,
 		CPUInfoMap: make(map[int64]message.CPUInfo),
 	}
-	cpus := strings.Split(s, "\r\n\r\n")
+	cpus := strings.Split(s, "\n\n")
 	for _, cpu := range cpus {
 		cpu = strings.TrimSpace(cpu)
 		if len(cpu) == 0 {
 			continue
 		}
 		// 正则匹配
-		physicalIdReg := regexp.MustCompile(`physical id\t: (\d+)\r\n`)
+		physicalIdReg := regexp.MustCompile(`physical id\t: (\d+)\n`)
 		if physicalIdReg == nil {
 			log.Fatalf("regexp parse fail : physical id")
 		}
@@ -43,7 +43,7 @@ func parseCPUInfoMessage(port int, host, user, s string) (m message.CPUInfoMessa
 				CPUCoreInfoMap: make(map[int64]message.CPUCoreInfo),
 				PhysicalId:     physicalId,
 			}
-			lines := strings.Split(cpu, "\r\n")
+			lines := strings.Split(cpu, "\n")
 			for _, line := range lines {
 				line = strings.TrimSpace(line)
 				if strings.HasPrefix(line, "vendor_id") {
@@ -108,7 +108,7 @@ func parseCPUInfoMessage(port int, host, user, s string) (m message.CPUInfoMessa
 			}
 			m.CPUInfoMap[physicalId] = cpuInfo
 		}
-		coreIdReg := regexp.MustCompile(`core id\t\t: (\d+)\r\n`)
+		coreIdReg := regexp.MustCompile(`core id\t\t: (\d+)\n`)
 		if coreIdReg == nil {
 			log.Fatalf("regexp parse fail : core id")
 		}
@@ -130,7 +130,7 @@ func parseCPUInfoMessage(port int, host, user, s string) (m message.CPUInfoMessa
 			}
 			cpuInfo.CPUCoreInfoMap[coreId] = cpuCoreInfo
 		}
-		processorIdReg := regexp.MustCompile(`processor\t: (\d+)\r\n`)
+		processorIdReg := regexp.MustCompile(`processor\t: (\d+)\n`)
 		if processorIdReg == nil {
 			log.Fatalf("regexp parse fail : processor id")
 		}
@@ -149,7 +149,7 @@ func parseCPUInfoMessage(port int, host, user, s string) (m message.CPUInfoMessa
 			cpuProcessorInfo = message.CPUProcessorInfo{
 				Processor: processorId,
 			}
-			lines := strings.Split(cpu, "\r\n")
+			lines := strings.Split(cpu, "\n")
 			for _, line := range lines {
 				line = strings.TrimSpace(line)
 				if strings.HasPrefix(line, "cpu MHz") {
@@ -186,7 +186,7 @@ func parseCPUPerformanceMessage(port int, host, user, old, new string) message.C
 		Total:             message.CPUPerformanceTotal{},
 		CPUPerformanceMap: make(map[int64]message.CPUPerformance),
 	}
-	reg := regexp.MustCompile(`cpu(\d*)\s+(\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+)\r\n`)
+	reg := regexp.MustCompile(`cpu(\d*)\s+(\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+)\n`)
 
 	if reg == nil {
 		log.Fatalf("regexp parse fail : cpu performance")
@@ -216,8 +216,7 @@ func parseCPUPerformanceMessage(port int, host, user, old, new string) message.C
 		oldTotalCPUTime += parseInt64(oldResult[0][i])
 	}
 	oldTotalCPUTime *= jiffies
-	utilization := float64(100) - (float64(100*jiffies*(parseInt64(newResult[0][5])-parseInt64(oldResult[0][5]))) / float64(totalCPUTime-oldTotalCPUTime))
-	m.Total.Utilization = fmt.Sprintf("%.2f%", utilization)
+	m.Total.Utilization = float64(100) - (float64(100*jiffies*(parseInt64(newResult[0][5])-parseInt64(oldResult[0][5]))) / float64(totalCPUTime-oldTotalCPUTime))
 	return m
 }
 
