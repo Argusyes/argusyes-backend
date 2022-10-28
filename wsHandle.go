@@ -65,7 +65,7 @@ type WSMonitorSSHResponseResult struct {
 	Port    int     `json:"port" validate:"required"`
 	Host    string  `json:"host" validate:"ip_addr"`
 	User    string  `json:"user" validate:"required"`
-	Monitor bool    `json:"monitor" validate:"required"`
+	Monitor bool    `json:"monitor"`
 	Error   *string `json:"error"`
 }
 
@@ -79,7 +79,7 @@ type WSUnMonitorSSHResponseResult struct {
 	Port      int     `json:"port" validate:"required"`
 	Host      string  `json:"host" validate:"ip_addr"`
 	User      string  `json:"user" validate:"required"`
-	UnMonitor bool    `json:"unMonitor" validate:"required"`
+	UnMonitor bool    `json:"unMonitor"`
 	Error     *string `json:"error"`
 }
 
@@ -113,6 +113,25 @@ func getSSHListener(conn *wsocket.Connect) *ssh.Listener {
 					Message interface{} `json:"message" validate:"required"`
 				}{{
 					Event:   "cpuPerformance",
+					Message: m,
+				}},
+			}
+
+			requestBytes, err := json.Marshal(request)
+			if err != nil {
+				log.Fatalf("json parse fail : %v", err)
+			}
+			conn.WriteMessage(requestBytes)
+		},
+		MemoryPerformanceListener: func(m message.MemoryPerformanceMessage) {
+			request := &WSNotificationRequest{
+				Id:     nil,
+				Method: "ssh.notification",
+				Params: []struct {
+					Event   string      `json:"event" validate:"required"`
+					Message interface{} `json:"message" validate:"required"`
+				}{{
+					Event:   "memoryPerformance",
 					Message: m,
 				}},
 			}

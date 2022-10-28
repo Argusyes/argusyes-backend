@@ -14,16 +14,17 @@ import (
 )
 
 type SSH struct {
-	Key                  string
-	Port                 int
-	Host                 string
-	User                 string
-	sshClient            *ssh.Client
-	sftpClient           *sftp.Client
-	stop                 chan int
-	wg                   sync.WaitGroup
-	cpuInfoClient        CPUInfoClient
-	cpuPerformanceClient CPUPerformanceClient
+	Key                     string
+	Port                    int
+	Host                    string
+	User                    string
+	sshClient               *ssh.Client
+	sftpClient              *sftp.Client
+	stop                    chan int
+	wg                      sync.WaitGroup
+	cpuInfoClient           CPUInfoClient
+	cpuPerformanceClient    CPUPerformanceClient
+	memoryPerformanceClient MemoryPerformanceClient
 }
 
 type CPUInfoClient struct {
@@ -36,7 +37,10 @@ type CPUPerformanceClient struct {
 	mutex                  sync.Mutex
 }
 
-const XTERM = "xterm"
+type MemoryPerformanceClient struct {
+	memoryPerformanceListener map[string]message.MemoryPerformanceListener
+	mutex                     sync.Mutex
+}
 
 func newSSH(port int, host, user, passwd string) (*SSH, error) {
 
@@ -75,6 +79,9 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		cpuPerformanceClient: CPUPerformanceClient{
 			cpuPerformanceListener: make(map[string]message.CPUPerformanceListener, 0),
 		},
+		memoryPerformanceClient: MemoryPerformanceClient{
+			memoryPerformanceListener: make(map[string]message.MemoryPerformanceListener, 0),
+		},
 	}, nil
 }
 
@@ -96,6 +103,8 @@ func (h *SSH) startAllMonitor() {
 	go h.monitorCPUInfo()
 	h.wg.Add(1)
 	go h.monitorCPUPerformance()
+	h.wg.Add(1)
+	go h.monitorMemoryPerformance()
 }
 
 func (h *SSH) RegisterCPUInfoListener(key string, listener message.CPUInfoListener) {
@@ -187,6 +196,51 @@ func (h *SSH) monitorCPUPerformance() {
 				h.cpuPerformanceClient.mutex.Unlock()
 			}
 			old = string(s)
+		}
+		time.Sleep(3 * time.Second)
+	}
+}
+
+func (h *SSH) RegisterMemoryPerformanceListener(key string, listener message.MemoryPerformanceListener) {
+	h.memoryPerformanceClient.mutex.Lock()
+	defer h.memoryPerformanceClient.mutex.Unlock()
+	h.memoryPerformanceClient.memoryPerformanceListener[key] = listener
+}
+
+func (h *SSH) RemoveMemoryPerformanceListener(key string) {
+	h.memoryPerformanceClient.mutex.Lock()
+	defer h.memoryPerformanceClient.mutex.Unlock()
+	delete(h.memoryPerformanceClient.memoryPerformanceListener, key)
+}
+
+func (h *SSH) monitorMemoryPerformance() {
+
+	where := "memory performance"
+	for {
+		select {
+		case s, ok := <-h.stop:
+			if !ok {
+				h.wg.Done()
+				return
+			} else {
+				log.Printf("Unexpect recv %d", s)
+			}
+		default:
+			srcFile, err := h.sftpClient.OpenFile("/proc/meminfo", os.O_RDONLY)
+			if err != nil {
+				log.Printf("Read %s file fail : %v", where, err)
+			}
+			s, err := ioutil.ReadAll(srcFile)
+			err = srcFile.Close()
+			if err != nil {
+				log.Printf("Close %s file fail : %v", where, err)
+			}
+			m := parseMemoryPerformanceMessage(h.Port, h.Host, h.User, string(s))
+			h.memoryPerformanceClient.mutex.Lock()
+			for _, l := range h.memoryPerformanceClient.memoryPerformanceListener {
+				l(m)
+			}
+			h.memoryPerformanceClient.mutex.Unlock()
 		}
 		time.Sleep(3 * time.Second)
 	}

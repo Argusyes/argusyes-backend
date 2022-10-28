@@ -84,3 +84,45 @@ type CPUPerformance struct {
 	IO          float64 `json:"IO"`
 	Steal       float64 `json:"steal"`
 }
+
+// MemoryPerformanceMessage is a message to describe memory Performance info
+type MemoryPerformanceMessage struct {
+	Port   int               `json:"port"`
+	Host   string            `json:"host"`
+	User   string            `json:"user"`
+	Memory MemoryPerformance `json:"memory"`
+}
+
+type MemoryPerformance struct {
+	TotalMem string `json:"totalMem"`
+	// 未用占比
+	FreeMemOccupy float64 `json:"freeMemOccupy"`
+	// 未用
+	FreeMem string `json:"freeMem"`
+	// 可用占比
+	AvailableMemOccupy float64 `json:"availableMemOccupy"`
+	// 可用
+	AvailableMem string `json:"availableMem"`
+	// 块设备缓存占比
+	BufferOccupy float64 `json:"bufferOccupy"`
+	// 块设备缓存
+	Buffer string `json:"buffer"`
+	// 普通文件缓存占比
+	CacheOccupy float64 `json:"cacheOccupy"`
+	// 普通文件缓存
+	Cached string `json:"cached"`
+	// 脏页占比
+	DirtyOccupy float64 `json:"dirtyOccupy"`
+	// 脏页
+	Dirty string `json:"dirty"`
+	// 交换总内存
+	SwapTotal string `json:"swapTotal"`
+	// 交换可用占比
+	SwapFreeOccupy float64 `json:"swapFreeOccupy"`
+	// 交换可用内存
+	SwapFree string `json:"swapFree"`
+	// 交换文件缓存占比
+	SwapCachedOccupy float64 `json:"swapCachedOccupy"`
+	// 交换文件缓存
+	SwapCached string `json:"swapCached"`
+}
