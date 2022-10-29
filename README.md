@@ -18,7 +18,7 @@ request example
 ```json
 {
   "id": "2138a74f91264b1",
-  "method": "ssh.start_monitor",
+  "method": "ssh.startMonitor",
   "params": [
     {
       "port": 22,
@@ -68,7 +68,7 @@ request example
 ```json
 {
   "id": "32190b82109a23",
-  "method": "ssh.stop_monitor",
+  "method": "ssh.stopMonitor",
   "params": [
     {
       "port": 22,
@@ -96,14 +96,14 @@ response example
       "port": 22,
       "host": "10.128.248.93",
       "user": "cc",
-      "un_monitor": true,
+      "unMonitor": true,
       "error": null
     },
     {
       "port": 10022,
       "host": "10.112.230.222",
       "user": "chenchen",
-      "un_monitor": true,
+      "unMonitor": true,
       "error": null
     }
   ]
@@ -120,16 +120,16 @@ response example
   "method": "ssh.notification",
   "params": [
     {
-      "event": "cpu_info",
+      "event": "cpuInfo",
       "message": {
         "port": 22,
         "host": "10.128.248.93",
         "user": "cc",
-        "cpu_info": {
+        "cpuInfo": {
           "0": {
-            "cpu_core_info": {
+            "cpuCoreInfo": {
               "0": {
-                "cpu_processor_info": {
+                "cpuProcessorInfo": {
                   "0": {
                     "processor": 0,
                     "CPUMHz": 3353.203,
@@ -141,10 +141,10 @@ response example
                     "apicid": 1
                   }
                 },
-                "core_id": 0
+                "coreId": 0
               },
               "1": {
-                "cpu_processor_info": {
+                "cpuProcessorInfo": {
                   "1": {
                     "processor": 1,
                     "CPUMHz": 3352.969,
@@ -156,10 +156,10 @@ response example
                     "apicid": 3
                   }
                 },
-                "core_id": 1
+                "coreId": 1
               },
               "2": {
-                "cpu_processor_info": {
+                "cpuProcessorInfo": {
                   "2": {
                     "processor": 2,
                     "CPUMHz": 3092.994,
@@ -171,10 +171,10 @@ response example
                     "apicid": 5
                   }
                 },
-                "core_id": 2
+                "coreId": 2
               },
               "3": {
-                "cpu_processor_info": {
+                "cpuProcessorInfo": {
                   "3": {
                     "processor": 3,
                     "CPUMHz": 3352.634,
@@ -186,24 +186,24 @@ response example
                     "apicid": 7
                   }
                 },
-                "core_id": 3
+                "coreId": 3
               }
             },
-            "vendor_id": "GenuineIntel",
-            "cpu_family": "6",
+            "vendorId": "GenuineIntel",
+            "cpuFamily": "6",
             "model": "60",
-            "model_name": "Intel(R) Xeon(R) CPU E3-1265L v3 @ 2.50GHz",
+            "modelName": "Intel(R) Xeon(R) CPU E3-1265L v3 @ 2.50GHz",
             "stepping": "3",
-            "cache_size": "8192 KB",
-            "physical_id": 0,
+            "cacheSize": "8192 KB",
+            "physicalId": 0,
             "siblings": 8,
-            "cpu_cores": 4,
+            "cpuCores": 4,
             "fpu": true,
-            "fpu_exception": false,
+            "fpuException": false,
             "bogomips": 4988.55,
-            "cl_flush_size": 64,
-            "cache_alignment": 64,
-            "address_sizes": "39 bits physical, 48 bits virtual"
+            "clFlushSize": 64,
+            "cacheAlignment": 64,
+            "addressSizes": "39 bits physical, 48 bits virtual"
           }
         }
       }
