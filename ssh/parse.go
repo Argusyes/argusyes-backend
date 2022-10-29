@@ -9,7 +9,11 @@ import (
 	"strings"
 )
 
-func parseCPUInfoMessage(port int, host, user, old, new string) *CPUInfoMessage {
+type Parser struct {
+	CPUProcessorNum int64
+}
+
+func (p *Parser) parseCPUInfoMessage(port int, host, user, _, new string) *CPUInfoMessage {
 	m := &CPUInfoMessage{
 		Message: Message{
 			Port: port,
@@ -68,6 +72,7 @@ func parseCPUInfoMessage(port int, host, user, old, new string) *CPUInfoMessage 
 						continue
 					}
 					cpuInfo.Siblings = parseInt
+					p.CPUProcessorNum = parseInt
 				} else if strings.HasPrefix(line, "cpu cores") {
 					temp := strings.TrimSpace(strings.Split(line, ":")[1])
 					parseInt, err := strconv.ParseInt(temp, 10, 64)
@@ -178,7 +183,7 @@ func parseCPUInfoMessage(port int, host, user, old, new string) *CPUInfoMessage 
 	return m
 }
 
-func parseCPUPerformanceMessage(port int, host, user, old, new string) *CPUPerformanceMessage {
+func (p *Parser) parseCPUPerformanceMessage(port int, host, user, old, new string) *CPUPerformanceMessage {
 	if old == "" {
 		return nil
 	}
@@ -208,7 +213,11 @@ func parseCPUPerformanceMessage(port int, host, user, old, new string) *CPUPerfo
 	// 运行时间
 	newTotalCPUTime := int64(0)
 	for i := 2; i < len(newResult[0]); i++ {
-		newTotalCPUTime += parseInt64(newResult[0][i])
+		if x, ok := parseInt64(newResult[0][i]); ok {
+			newTotalCPUTime += x
+		} else {
+			return nil
+		}
 	}
 	totalCPUTime := newTotalCPUTime * jiffies
 	coreNum := int64(len(newResult) - 1)
@@ -225,41 +234,137 @@ func parseCPUPerformanceMessage(port int, host, user, old, new string) *CPUPerfo
 	// 利用率
 	oldTotalCPUTime := int64(0)
 	for i := 2; i < len(oldResult[0]); i++ {
-		oldTotalCPUTime += parseInt64(oldResult[0][i])
+		if x, ok := parseInt64(oldResult[0][i]); ok {
+			oldTotalCPUTime += x
+		} else {
+			return nil
+		}
 	}
 	diff := float64(newTotalCPUTime - oldTotalCPUTime)
-	m.Total.Utilization = roundFloat(float64(100)-float64(100*(parseInt64(newResult[0][5])-parseInt64(oldResult[0][5])))/diff, 2)
-	m.Total.Free = roundFloat(float64(100*(parseInt64(newResult[0][5])-parseInt64(oldResult[0][5])))/diff, 2)
-	m.Total.System = roundFloat(float64(100*(parseInt64(newResult[0][4])-parseInt64(oldResult[0][4])))/diff, 2)
-	m.Total.User = roundFloat(float64(100*(parseInt64(newResult[0][2])-parseInt64(oldResult[0][2])))/diff, 2)
-	m.Total.IO = roundFloat(float64(100*(parseInt64(newResult[0][6])-parseInt64(oldResult[0][6])))/diff, 2)
-	m.Total.Steal = roundFloat(float64(100*(parseInt64(newResult[0][9])-parseInt64(oldResult[0][9])))/diff, 2)
+	newUtilization, ok := parseInt64(newResult[0][5])
+	if !ok {
+		return nil
+	}
+	newSystem, ok := parseInt64(newResult[0][4])
+	if !ok {
+		return nil
+	}
+	newUser, ok := parseInt64(newResult[0][2])
+	if !ok {
+		return nil
+	}
+	newIO, ok := parseInt64(newResult[0][6])
+	if !ok {
+		return nil
+	}
+	newSteal, ok := parseInt64(newResult[0][9])
+	if !ok {
+		return nil
+	}
+	oldUtilization, ok := parseInt64(oldResult[0][5])
+	if !ok {
+		return nil
+	}
+	oldSystem, ok := parseInt64(oldResult[0][4])
+	if !ok {
+		return nil
+	}
+	oldUser, ok := parseInt64(oldResult[0][2])
+	if !ok {
+		return nil
+	}
+	oldIO, ok := parseInt64(oldResult[0][6])
+	if !ok {
+		return nil
+	}
+	oldSteal, ok := parseInt64(oldResult[0][9])
+	if !ok {
+		return nil
+	}
+	m.Total.Utilization = roundFloat(float64(100)-float64(100*(newUtilization-oldUtilization))/diff, 2)
+	m.Total.Free = roundFloat(float64(100*(newUtilization-oldUtilization))/diff, 2)
+	m.Total.System = roundFloat(float64(100*(newSystem-oldSystem))/diff, 2)
+	m.Total.User = roundFloat(float64(100*(newUser-oldUser))/diff, 2)
+	m.Total.IO = roundFloat(float64(100*(newIO-oldIO))/diff, 2)
+	m.Total.Steal = roundFloat(float64(100*(newSteal-oldSteal))/diff, 2)
 
 	for i := 1; i < len(oldResult); i++ {
 		pOldTotalCPUTime := int64(0)
 		for j := 2; j < len(oldResult[i]); j++ {
-			pOldTotalCPUTime += parseInt64(oldResult[i][j])
+			if x, ok := parseInt64(oldResult[i][j]); ok {
+				pOldTotalCPUTime += x
+			} else {
+				return nil
+			}
 		}
 		pNewTotalCPUTime := int64(0)
 		for j := 2; j < len(newResult[i]); j++ {
-			pNewTotalCPUTime += parseInt64(newResult[i][j])
+			if x, ok := parseInt64(newResult[i][j]); ok {
+				pNewTotalCPUTime += x
+			} else {
+				return nil
+			}
 		}
 		pDiff := float64(pNewTotalCPUTime - pOldTotalCPUTime)
-		processor := parseInt64(oldResult[i][1])
+		newPUtilization, ok := parseInt64(newResult[i][5])
+		if !ok {
+			return nil
+		}
+		newPSystem, ok := parseInt64(newResult[i][4])
+		if !ok {
+			return nil
+		}
+		newPUser, ok := parseInt64(newResult[i][2])
+		if !ok {
+			return nil
+		}
+		newPIO, ok := parseInt64(newResult[i][6])
+		if !ok {
+			return nil
+		}
+		newPSteal, ok := parseInt64(newResult[i][9])
+		if !ok {
+			return nil
+		}
+		oldPUtilization, ok := parseInt64(oldResult[i][5])
+		if !ok {
+			return nil
+		}
+		oldPSystem, ok := parseInt64(oldResult[i][4])
+		if !ok {
+			return nil
+		}
+		oldPUser, ok := parseInt64(oldResult[i][2])
+		if !ok {
+			return nil
+		}
+		oldPIO, ok := parseInt64(oldResult[i][6])
+		if !ok {
+			return nil
+		}
+		oldPSteal, ok := parseInt64(oldResult[i][9])
+		if !ok {
+			return nil
+		}
+
+		processor, ok := parseInt64(oldResult[i][1])
+		if !ok {
+			return nil
+		}
 		c := CPUPerformance{}
 		c.Processor = processor
-		c.Utilization = roundFloat(float64(100)-float64(100*(parseInt64(newResult[i][5])-parseInt64(oldResult[i][5])))/pDiff, 2)
-		c.Free = roundFloat(float64(100*(parseInt64(newResult[i][5])-parseInt64(oldResult[i][5])))/pDiff, 2)
-		c.System = roundFloat(float64(100*(parseInt64(newResult[i][4])-parseInt64(oldResult[i][4])))/pDiff, 2)
-		c.User = roundFloat(float64(100*(parseInt64(newResult[i][2])-parseInt64(oldResult[i][2])))/pDiff, 2)
-		c.IO = roundFloat(float64(100*(parseInt64(newResult[i][6])-parseInt64(oldResult[i][6])))/pDiff, 2)
-		c.Steal = roundFloat(float64(100*(parseInt64(newResult[i][9])-parseInt64(oldResult[i][9])))/pDiff, 2)
+		c.Utilization = roundFloat(float64(100)-float64(100*(newPUtilization-oldPUtilization))/pDiff, 2)
+		c.Free = roundFloat(float64(100*(newPUtilization-oldPUtilization))/pDiff, 2)
+		c.System = roundFloat(float64(100*(newPSystem-oldPSystem))/pDiff, 2)
+		c.User = roundFloat(float64(100*(newPUser-oldPUser))/pDiff, 2)
+		c.IO = roundFloat(float64(100*(newPIO-oldPIO))/pDiff, 2)
+		c.Steal = roundFloat(float64(100*(newPSteal-oldPSteal))/pDiff, 2)
 		m.CPUPerformanceMap[processor] = c
 	}
 	return m
 }
 
-func parseMemoryPerformanceMessage(port int, host, user, old, new string) *MemoryPerformanceMessage {
+func (p *Parser) parseMemoryPerformanceMessage(port int, host, user, _, new string) *MemoryPerformanceMessage {
 	m := &MemoryPerformanceMessage{
 		Message: Message{
 			Port: port,
@@ -278,7 +383,10 @@ func parseMemoryPerformanceMessage(port int, host, user, old, new string) *Memor
 		log.Printf("parse memory total fail")
 		return nil
 	}
-	TotalMem := parseInt64(MemTotalRegResults[0][1])
+	TotalMem, ok := parseInt64(MemTotalRegResults[0][1])
+	if !ok {
+		return nil
+	}
 	m.Memory.TotalMem = roundMem(TotalMem)
 
 	SwapTotalReg := regexp.MustCompile(`SwapTotal:\D+(\d+) kB\n`)
@@ -290,7 +398,10 @@ func parseMemoryPerformanceMessage(port int, host, user, old, new string) *Memor
 		log.Printf("parse swap total fail")
 		return nil
 	}
-	SwapTotal := parseInt64(SwapTotalRegResult[0][1])
+	SwapTotal, ok := parseInt64(SwapTotalRegResult[0][1])
+	if !ok {
+		return nil
+	}
 	m.Memory.SwapTotal = roundMem(SwapTotal)
 
 	lines := strings.Split(new, "\n")
@@ -301,31 +412,52 @@ func parseMemoryPerformanceMessage(port int, host, user, old, new string) *Memor
 		line := strings.Replace(line, "kB", "", len(lines)-len("kB"))
 		number := strings.TrimSpace(strings.Split(line, ":")[1])
 		if strings.HasPrefix(line, "MemFree:") {
-			t := parseInt64(number)
+			t, ok := parseInt64(number)
+			if !ok {
+				return nil
+			}
 			m.Memory.FreeMem = roundMem(t)
 			m.Memory.FreeMemOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "MemAvailable:") {
-			t := parseInt64(number)
+			t, ok := parseInt64(number)
+			if !ok {
+				return nil
+			}
 			m.Memory.AvailableMem = roundMem(t)
 			m.Memory.AvailableMemOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "Buffers:") {
-			t := parseInt64(number)
+			t, ok := parseInt64(number)
+			if !ok {
+				return nil
+			}
 			m.Memory.Buffer = roundMem(t)
 			m.Memory.BufferOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "Cached:") {
-			t := parseInt64(number)
+			t, ok := parseInt64(number)
+			if !ok {
+				return nil
+			}
 			m.Memory.Cached = roundMem(t)
 			m.Memory.CacheOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "Dirty:") {
-			t := parseInt64(number)
+			t, ok := parseInt64(number)
+			if !ok {
+				return nil
+			}
 			m.Memory.Dirty = roundMem(t)
 			m.Memory.DirtyOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "SwapCached:") {
-			t := parseInt64(number)
+			t, ok := parseInt64(number)
+			if !ok {
+				return nil
+			}
 			m.Memory.SwapCached = roundMem(t)
 			m.Memory.SwapCachedOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "SwapFree:") {
-			t := parseInt64(number)
+			t, ok := parseInt64(number)
+			if !ok {
+				return nil
+			}
 			m.Memory.SwapFree = roundMem(t)
 			m.Memory.SwapFreeOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		}
@@ -334,7 +466,7 @@ func parseMemoryPerformanceMessage(port int, host, user, old, new string) *Memor
 	return m
 }
 
-func parseUptimeMessage(port int, host, user, old, new string) *UptimeMessage {
+func (p *Parser) parseUptimeMessage(port int, host, user, _, new string) *UptimeMessage {
 	m := &UptimeMessage{
 		Message: Message{
 			Port: port,
@@ -358,13 +490,62 @@ func parseUptimeMessage(port int, host, user, old, new string) *UptimeMessage {
 	return m
 }
 
-func parseInt64(s string) int64 {
+func (p *Parser) parseLoadavgMessage(port int, host, user, _, new string) *LoadavgMessage {
+	m := &LoadavgMessage{
+		Message: Message{
+			Port: port,
+			Host: host,
+			User: user,
+		},
+		Loadavg: Loadavg{},
+	}
+	if p.CPUProcessorNum == 0 {
+		return nil
+	}
+	new = strings.ReplaceAll(new, "\n", "")
+	ss := strings.Split(new, " ")
+	ok := true
+	if m.Loadavg.One, ok = parseFloat64(ss[0]); !ok {
+		return nil
+	}
+	m.Loadavg.OneOccupy = roundFloat(m.Loadavg.One/float64(p.CPUProcessorNum), 2)
+	if m.Loadavg.Five, ok = parseFloat64(ss[1]); !ok {
+		return nil
+	}
+	m.Loadavg.FiveOccupy = roundFloat(m.Loadavg.Five/float64(p.CPUProcessorNum), 2)
+	if m.Loadavg.Fifteen, ok = parseFloat64(ss[2]); !ok {
+		return nil
+	}
+	m.Loadavg.FifteenOccupy = roundFloat(m.Loadavg.Fifteen/float64(p.CPUProcessorNum), 2)
+	thread := strings.Split(ss[3], "/")
+	if m.Loadavg.Running, ok = parseInt64(thread[0]); !ok {
+		return nil
+	}
+	if m.Loadavg.Active, ok = parseInt64(thread[1]); !ok {
+		return nil
+	}
+	if m.Loadavg.LastPid, ok = parseInt64(ss[4]); !ok {
+		return nil
+	}
+	return m
+}
+
+func parseInt64(s string) (int64, bool) {
 	parseInt, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		log.Printf("parse int fail %s : %v", s, err)
-		return 0
+		return 0, false
 	}
-	return parseInt
+	return parseInt, true
+}
+
+func parseFloat64(s string) (float64, bool) {
+	parseFloat, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		log.Printf("parse float fail %s : %v", s, err)
+		return 0, false
+	}
+	return parseFloat, true
 }
 
 func roundMem(kb int64) string {

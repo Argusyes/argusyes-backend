@@ -89,10 +89,12 @@ type SSH struct {
 	sftpClient              *sftp.Client
 	stop                    chan int
 	wg                      sync.WaitGroup
+	parser                  Parser
 	cpuInfoClient           Client[CPUInfoMessage]
 	cpuPerformanceClient    Client[CPUPerformanceMessage]
 	memoryPerformanceClient Client[MemoryPerformanceMessage]
 	uptimeClient            Client[UptimeMessage]
+	loadavgClient           Client[LoadavgMessage]
 }
 
 func newSSH(port int, host, user, passwd string) (*SSH, error) {
@@ -127,10 +129,12 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		sshClient:               sshClient,
 		sftpClient:              sftpClient,
 		stop:                    make(chan int),
+		parser:                  Parser{},
 		cpuInfoClient:           NewClient[CPUInfoMessage]("/proc/cpuinfo"),
 		cpuPerformanceClient:    NewClient[CPUPerformanceMessage]("/proc/stat"),
 		memoryPerformanceClient: NewClient[MemoryPerformanceMessage]("/proc/meminfo"),
 		uptimeClient:            NewClient[UptimeMessage]("/proc/uptime"),
+		loadavgClient:           NewClient[LoadavgMessage]("/proc/loadavg"),
 	}, nil
 }
 
@@ -148,11 +152,12 @@ func (h *SSH) Close() {
 }
 
 func (h *SSH) startAllMonitor() {
-	h.wg.Add(4)
-	go h.cpuInfoClient.monitor(h, parseCPUInfoMessage, 10)
-	go h.cpuPerformanceClient.monitor(h, parseCPUPerformanceMessage, 2)
-	go h.memoryPerformanceClient.monitor(h, parseMemoryPerformanceMessage, 2)
-	go h.uptimeClient.monitor(h, parseUptimeMessage, 2)
+	h.wg.Add(5)
+	go h.cpuInfoClient.monitor(h, h.parser.parseCPUInfoMessage, 10)
+	go h.cpuPerformanceClient.monitor(h, h.parser.parseCPUPerformanceMessage, 2)
+	go h.memoryPerformanceClient.monitor(h, h.parser.parseMemoryPerformanceMessage, 2)
+	go h.uptimeClient.monitor(h, h.parser.parseUptimeMessage, 2)
+	go h.loadavgClient.monitor(h, h.parser.parseLoadavgMessage, 2)
 }
 
 func (h *SSH) RegisterAllListener(key string, listeners AllListener) {
@@ -168,6 +173,9 @@ func (h *SSH) RegisterAllListener(key string, listeners AllListener) {
 	if listeners.UptimeListener != nil {
 		h.uptimeClient.RegisterHandler(key, listeners.UptimeListener)
 	}
+	if listeners.LoadavgListener != nil {
+		h.loadavgClient.RegisterHandler(key, listeners.LoadavgListener)
+	}
 }
 
 func (h *SSH) RemoveAllListener(key string) {
@@ -175,6 +183,7 @@ func (h *SSH) RemoveAllListener(key string) {
 	h.cpuPerformanceClient.RemoveHandler(key)
 	h.memoryPerformanceClient.RemoveHandler(key)
 	h.uptimeClient.RemoveHandler(key)
+	h.loadavgClient.RemoveHandler(key)
 }
 
 func (h *SSH) LenListener() int {

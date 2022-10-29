@@ -8,7 +8,6 @@ type Message struct {
 	User string `json:"user"`
 }
 
-// CPUInfoMessage is the message to describe CPU info
 type CPUInfoMessage struct {
 	Message
 	CPUInfoMap map[int64]CPUInfo `json:"cpuInfo"`
@@ -63,7 +62,6 @@ type CPUProcessorInfo struct {
 	Apicid int64 `json:"apicid"`
 }
 
-// CPUPerformanceMessage is a message to describe cpu Performance info
 type CPUPerformanceMessage struct {
 	Message
 	Total             CPUPerformanceTotal      `json:"total"`
@@ -89,7 +87,6 @@ type CPUPerformance struct {
 	Steal       float64 `json:"steal"`
 }
 
-// MemoryPerformanceMessage is a message to describe memory Performance info
 type MemoryPerformanceMessage struct {
 	Message
 	Memory MemoryPerformance `json:"memory"`
@@ -129,7 +126,6 @@ type MemoryPerformance struct {
 	SwapCached string `json:"swapCached"`
 }
 
-// UptimeMessage is a message to describe uptime info
 type UptimeMessage struct {
 	Message
 	Uptime Uptime `json:"uptime"`
@@ -140,4 +136,21 @@ type Uptime struct {
 	UpHour int64 `json:"UpHour"`
 	UpMin  int64 `json:"upMin"`
 	UpSec  int64 `json:"upSec"`
+}
+
+type LoadavgMessage struct {
+	Message
+	Loadavg Loadavg `json:"loadavg"`
+}
+
+type Loadavg struct {
+	One           float64 `json:"one"`
+	OneOccupy     float64 `json:"oneOccupy"`
+	Five          float64 `json:"five"`
+	FiveOccupy    float64 `json:"fiveOccupy"`
+	Fifteen       float64 `json:"fifteen"`
+	FifteenOccupy float64 `json:"fifteenOccupy"`
+	Running       int64   `json:"running"`
+	Active        int64   `json:"active"`
+	LastPid       int64   `json:"lastPid"`
 }
