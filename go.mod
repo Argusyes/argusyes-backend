@@ -3,7 +3,6 @@ module argus
 go 1.18
 
 replace (
-	message => ./message
 	mongoDB => ./mongoDB
 	ssh => ./ssh
 	wsocket => ./wsocket
@@ -18,7 +17,6 @@ require (
 	github.com/go-playground/validator/v10 v10.11.1
 	github.com/json-iterator/go v1.1.12
 	github.com/pelletier/go-toml v1.9.5
-	message v0.0.0
 	mongoDB v0.0.0
 	wsocket v0.0.0
 )

@@ -3,20 +3,22 @@ package ssh
 import (
 	"fmt"
 	"log"
-	"message"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
-func parseCPUInfoMessage(port int, host, user, s string) (m message.CPUInfoMessage) {
-	m = message.CPUInfoMessage{
-		Port:       port,
-		Host:       host,
-		User:       user,
-		CPUInfoMap: make(map[int64]message.CPUInfo),
+func parseCPUInfoMessage(port int, host, user, old, new string) *CPUInfoMessage {
+	m := &CPUInfoMessage{
+		Message: Message{
+			Port: port,
+			Host: host,
+			User: user,
+		},
+		CPUInfoMap: make(map[int64]CPUInfo),
 	}
-	cpus := strings.Split(s, "\n\n")
+	cpus := strings.Split(new, "\n\n")
 	for _, cpu := range cpus {
 		cpu = strings.TrimSpace(cpu)
 		if len(cpu) == 0 {
@@ -39,8 +41,8 @@ func parseCPUInfoMessage(port int, host, user, s string) (m message.CPUInfoMessa
 		}
 		cpuInfo, ok := m.CPUInfoMap[physicalId]
 		if !ok {
-			cpuInfo = message.CPUInfo{
-				CPUCoreInfoMap: make(map[int64]message.CPUCoreInfo),
+			cpuInfo = CPUInfo{
+				CPUCoreInfoMap: make(map[int64]CPUCoreInfo),
 				PhysicalId:     physicalId,
 			}
 			lines := strings.Split(cpu, "\n")
@@ -124,8 +126,8 @@ func parseCPUInfoMessage(port int, host, user, s string) (m message.CPUInfoMessa
 		}
 		cpuCoreInfo, ok := cpuInfo.CPUCoreInfoMap[coreId]
 		if !ok {
-			cpuCoreInfo = message.CPUCoreInfo{
-				CPUProcessorInfoMap: make(map[int64]message.CPUProcessorInfo),
+			cpuCoreInfo = CPUCoreInfo{
+				CPUProcessorInfoMap: make(map[int64]CPUProcessorInfo),
 				CoreId:              coreId,
 			}
 			cpuInfo.CPUCoreInfoMap[coreId] = cpuCoreInfo
@@ -146,7 +148,7 @@ func parseCPUInfoMessage(port int, host, user, s string) (m message.CPUInfoMessa
 		}
 		cpuProcessorInfo, ok := cpuCoreInfo.CPUProcessorInfoMap[processorId]
 		if !ok {
-			cpuProcessorInfo = message.CPUProcessorInfo{
+			cpuProcessorInfo = CPUProcessorInfo{
 				Processor: processorId,
 			}
 			lines := strings.Split(cpu, "\n")
@@ -173,18 +175,23 @@ func parseCPUInfoMessage(port int, host, user, s string) (m message.CPUInfoMessa
 			cpuCoreInfo.CPUProcessorInfoMap[processorId] = cpuProcessorInfo
 		}
 	}
-	return
+	return m
 }
 
-func parseCPUPerformanceMessage(port int, host, user, old, new string) message.CPUPerformanceMessage {
+func parseCPUPerformanceMessage(port int, host, user, old, new string) *CPUPerformanceMessage {
+	if old == "" {
+		return nil
+	}
 	// Linux 时间片默认为 10ms
 	jiffies := int64(10)
-	m := message.CPUPerformanceMessage{
-		Port:              port,
-		Host:              host,
-		User:              user,
-		Total:             message.CPUPerformanceTotal{},
-		CPUPerformanceMap: make(map[int64]message.CPUPerformance),
+	m := &CPUPerformanceMessage{
+		Message: Message{
+			Port: port,
+			Host: host,
+			User: user,
+		},
+		Total:             CPUPerformanceTotal{},
+		CPUPerformanceMap: make(map[int64]CPUPerformance),
 	}
 	reg := regexp.MustCompile(`cpu(\d*)\s+(\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+)\n`)
 
@@ -196,7 +203,7 @@ func parseCPUPerformanceMessage(port int, host, user, old, new string) message.C
 
 	if oldResult == nil || newResult == nil {
 		log.Printf("parse cpu performance fail")
-		return m
+		return nil
 	}
 	// 运行时间
 	newTotalCPUTime := int64(0)
@@ -239,7 +246,7 @@ func parseCPUPerformanceMessage(port int, host, user, old, new string) message.C
 		}
 		pDiff := float64(pNewTotalCPUTime - pOldTotalCPUTime)
 		processor := parseInt64(oldResult[i][1])
-		c := message.CPUPerformance{}
+		c := CPUPerformance{}
 		c.Processor = processor
 		c.Utilization = roundFloat(float64(100)-float64(100*(parseInt64(newResult[i][5])-parseInt64(oldResult[i][5])))/pDiff, 2)
 		c.Free = roundFloat(float64(100*(parseInt64(newResult[i][5])-parseInt64(oldResult[i][5])))/pDiff, 2)
@@ -252,22 +259,24 @@ func parseCPUPerformanceMessage(port int, host, user, old, new string) message.C
 	return m
 }
 
-func parseMemoryPerformanceMessage(port int, host, user, s string) message.MemoryPerformanceMessage {
-	m := message.MemoryPerformanceMessage{
-		Port:   port,
-		Host:   host,
-		User:   user,
-		Memory: message.MemoryPerformance{},
+func parseMemoryPerformanceMessage(port int, host, user, old, new string) *MemoryPerformanceMessage {
+	m := &MemoryPerformanceMessage{
+		Message: Message{
+			Port: port,
+			Host: host,
+			User: user,
+		},
+		Memory: MemoryPerformance{},
 	}
 
 	MemTotalReg := regexp.MustCompile(`MemTotal:\D+(\d+) kB\n`)
 	if MemTotalReg == nil {
 		log.Fatalf("regexp parse fail : memory total")
 	}
-	MemTotalRegResults := MemTotalReg.FindAllStringSubmatch(s, -1)
+	MemTotalRegResults := MemTotalReg.FindAllStringSubmatch(new, -1)
 	if MemTotalRegResults == nil {
 		log.Printf("parse memory total fail")
-		return m
+		return nil
 	}
 	TotalMem := parseInt64(MemTotalRegResults[0][1])
 	m.Memory.TotalMem = roundMem(TotalMem)
@@ -276,15 +285,15 @@ func parseMemoryPerformanceMessage(port int, host, user, s string) message.Memor
 	if SwapTotalReg == nil {
 		log.Fatalf("regexp parse fail : swap total")
 	}
-	SwapTotalRegResult := SwapTotalReg.FindAllStringSubmatch(s, -1)
+	SwapTotalRegResult := SwapTotalReg.FindAllStringSubmatch(new, -1)
 	if SwapTotalRegResult == nil {
 		log.Printf("parse swap total fail")
-		return m
+		return nil
 	}
 	SwapTotal := parseInt64(SwapTotalRegResult[0][1])
 	m.Memory.SwapTotal = roundMem(SwapTotal)
 
-	lines := strings.Split(s, "\n")
+	lines := strings.Split(new, "\n")
 	for _, line := range lines {
 		if !strings.Contains(line, ":") {
 			continue
@@ -322,6 +331,30 @@ func parseMemoryPerformanceMessage(port int, host, user, s string) message.Memor
 		}
 	}
 
+	return m
+}
+
+func parseUptimeMessage(port int, host, user, old, new string) *UptimeMessage {
+	m := &UptimeMessage{
+		Message: Message{
+			Port: port,
+			Host: host,
+			User: user,
+		},
+		Uptime: Uptime{},
+	}
+	uptime, err := strconv.ParseFloat(strings.Split(new, " ")[0], 64)
+	if err != nil {
+		log.Printf("parse float fail : %v", err)
+		return nil
+	}
+	m.Uptime.UpDay = int64(uptime) / int64(60*60*24)
+	uptime = math.Mod(uptime, float64(60*60*24))
+	m.Uptime.UpHour = int64(uptime) / int64(60*60)
+	uptime = math.Mod(uptime, float64(60*60))
+	m.Uptime.UpMin = int64(uptime) / int64(60)
+	uptime = math.Mod(uptime, float64(60))
+	m.Uptime.UpSec = int64(uptime)
 	return m
 }
 

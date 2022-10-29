@@ -4,7 +4,6 @@ import (
 	"fmt"
 	jsoniter "github.com/json-iterator/go"
 	"log"
-	"message"
 	"regexp"
 	"ssh"
 	"strings"
@@ -83,65 +82,35 @@ type WSUnMonitorSSHResponseResult struct {
 	Error     *string `json:"error"`
 }
 
-func getSSHListener(conn *wsocket.Connect) *ssh.Listener {
-	return &ssh.Listener{
-		CPUInfoListener: func(m message.CPUInfoMessage) {
-			request := &WSNotificationRequest{
-				Id:     nil,
-				Method: "ssh.notification",
-				Params: []struct {
-					Event   string      `json:"event" validate:"required"`
-					Message interface{} `json:"message" validate:"required"`
-				}{{
-					Event:   "cpuInfo",
-					Message: m,
-				}},
-			}
+func listenerTemplate[M any](conn *wsocket.Connect, event string) func(m M) {
+	return func(m M) {
+		request := &WSNotificationRequest{
+			Id:     nil,
+			Method: "ssh.notification",
+			Params: []struct {
+				Event   string      `json:"event" validate:"required"`
+				Message interface{} `json:"message" validate:"required"`
+			}{{
+				Event:   event,
+				Message: m,
+			}},
+		}
 
-			requestBytes, err := json.Marshal(request)
-			if err != nil {
-				log.Fatalf("json parse fail : %v", err)
-			}
-			conn.WriteMessage(requestBytes)
-		},
-		CPUPerformanceListener: func(m message.CPUPerformanceMessage) {
-			request := &WSNotificationRequest{
-				Id:     nil,
-				Method: "ssh.notification",
-				Params: []struct {
-					Event   string      `json:"event" validate:"required"`
-					Message interface{} `json:"message" validate:"required"`
-				}{{
-					Event:   "cpuPerformance",
-					Message: m,
-				}},
-			}
+		requestBytes, err := json.Marshal(request)
+		if err != nil {
+			log.Fatalf("json parse fail : %v", err)
+		}
+		conn.WriteMessage(requestBytes)
+	}
+}
 
-			requestBytes, err := json.Marshal(request)
-			if err != nil {
-				log.Fatalf("json parse fail : %v", err)
-			}
-			conn.WriteMessage(requestBytes)
-		},
-		MemoryPerformanceListener: func(m message.MemoryPerformanceMessage) {
-			request := &WSNotificationRequest{
-				Id:     nil,
-				Method: "ssh.notification",
-				Params: []struct {
-					Event   string      `json:"event" validate:"required"`
-					Message interface{} `json:"message" validate:"required"`
-				}{{
-					Event:   "memoryPerformance",
-					Message: m,
-				}},
-			}
+func getSSHListener(conn *wsocket.Connect) ssh.AllListener {
 
-			requestBytes, err := json.Marshal(request)
-			if err != nil {
-				log.Fatalf("json parse fail : %v", err)
-			}
-			conn.WriteMessage(requestBytes)
-		},
+	return ssh.AllListener{
+		CPUInfoListener:           listenerTemplate[ssh.CPUInfoMessage](conn, "cpuInfo"),
+		CPUPerformanceListener:    listenerTemplate[ssh.CPUPerformanceMessage](conn, "cpuPerformance"),
+		MemoryPerformanceListener: listenerTemplate[ssh.MemoryPerformanceMessage](conn, "memoryPerformance"),
+		UptimeListener:            listenerTemplate[ssh.UptimeMessage](conn, "uptime"),
 	}
 }
 

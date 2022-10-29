@@ -1,10 +1,16 @@
-package message
+package ssh
+
+type Listener[M any] func(message M)
+
+type Message struct {
+	Port int    `json:"port"`
+	Host string `json:"host"`
+	User string `json:"user"`
+}
 
 // CPUInfoMessage is the message to describe CPU info
 type CPUInfoMessage struct {
-	Port       int               `json:"port"`
-	Host       string            `json:"host"`
-	User       string            `json:"user"`
+	Message
 	CPUInfoMap map[int64]CPUInfo `json:"cpuInfo"`
 }
 
@@ -59,9 +65,7 @@ type CPUProcessorInfo struct {
 
 // CPUPerformanceMessage is a message to describe cpu Performance info
 type CPUPerformanceMessage struct {
-	Port              int                      `json:"port"`
-	Host              string                   `json:"host"`
-	User              string                   `json:"user"`
+	Message
 	Total             CPUPerformanceTotal      `json:"total"`
 	CPUPerformanceMap map[int64]CPUPerformance `json:"cpuPerformance"`
 }
@@ -87,9 +91,7 @@ type CPUPerformance struct {
 
 // MemoryPerformanceMessage is a message to describe memory Performance info
 type MemoryPerformanceMessage struct {
-	Port   int               `json:"port"`
-	Host   string            `json:"host"`
-	User   string            `json:"user"`
+	Message
 	Memory MemoryPerformance `json:"memory"`
 }
 
@@ -125,4 +127,17 @@ type MemoryPerformance struct {
 	SwapCachedOccupy float64 `json:"swapCachedOccupy"`
 	// 交换文件缓存
 	SwapCached string `json:"swapCached"`
+}
+
+// UptimeMessage is a message to describe uptime info
+type UptimeMessage struct {
+	Message
+	Uptime Uptime `json:"uptime"`
+}
+
+type Uptime struct {
+	UpDay  int64 `json:"upDay"`
+	UpHour int64 `json:"UpHour"`
+	UpMin  int64 `json:"upMin"`
+	UpSec  int64 `json:"upSec"`
 }

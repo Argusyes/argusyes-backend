@@ -1,9 +1,8 @@
 package ssh
 
-import "message"
-
-type Listener struct {
-	CPUInfoListener           message.CPUInfoListener
-	CPUPerformanceListener    message.CPUPerformanceListener
-	MemoryPerformanceListener message.MemoryPerformanceListener
+type AllListener struct {
+	CPUInfoListener           Listener[CPUInfoMessage]
+	CPUPerformanceListener    Listener[CPUPerformanceMessage]
+	MemoryPerformanceListener Listener[MemoryPerformanceMessage]
+	UptimeListener            Listener[UptimeMessage]
 }

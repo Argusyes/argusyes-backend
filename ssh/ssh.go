@@ -7,11 +7,78 @@ import (
 	"golang.org/x/crypto/ssh"
 	"io/ioutil"
 	"log"
-	"message"
 	"os"
 	"sync"
 	"time"
 )
+
+type Client[M any] struct {
+	listener map[string]Listener[M]
+	mutex    sync.Mutex
+	where    string
+}
+
+func NewClient[M any](where string) Client[M] {
+	return Client[M]{
+		listener: make(map[string]Listener[M], 0),
+		where:    where,
+	}
+}
+
+func (c *Client[M]) Handler(m M) {
+	c.mutex.Lock()
+	for _, l := range c.listener {
+		l(m)
+	}
+	c.mutex.Unlock()
+}
+
+func (c *Client[M]) RegisterHandler(key string, listener Listener[M]) {
+	c.mutex.Lock()
+	c.listener[key] = listener
+	c.mutex.Unlock()
+}
+
+func (c *Client[M]) RemoveHandler(key string) {
+	c.mutex.Lock()
+	delete(c.listener, key)
+	c.mutex.Unlock()
+}
+
+func (c *Client[M]) monitor(h *SSH, f func(port int, host, user, old, new string) *M, second int) {
+	old := ""
+	for {
+		select {
+		case s, ok := <-h.stop:
+			if !ok {
+				h.wg.Done()
+				return
+			} else {
+				log.Printf("Unexpect recv %d", s)
+			}
+		default:
+			srcFile, err := h.sftpClient.OpenFile(c.where, os.O_RDONLY)
+			if err != nil {
+				log.Printf("Read %s file fail : %v", c.where, err)
+			}
+			s, err := ioutil.ReadAll(srcFile)
+			err = srcFile.Close()
+			if err != nil {
+				log.Printf("Close %s file fail : %v", c.where, err)
+			}
+			m := f(h.Port, h.Host, h.User, old, string(s))
+			if m != nil {
+				c.Handler(*m)
+			}
+			old = string(s)
+		}
+		time.Sleep(time.Duration(second) * time.Second)
+	}
+}
+
+func (c *Client[M]) LenListener() int {
+	return len(c.listener)
+}
 
 type SSH struct {
 	Key                     string
@@ -22,24 +89,10 @@ type SSH struct {
 	sftpClient              *sftp.Client
 	stop                    chan int
 	wg                      sync.WaitGroup
-	cpuInfoClient           CPUInfoClient
-	cpuPerformanceClient    CPUPerformanceClient
-	memoryPerformanceClient MemoryPerformanceClient
-}
-
-type CPUInfoClient struct {
-	cpuInfoListener map[string]message.CPUInfoListener
-	mutex           sync.Mutex
-}
-
-type CPUPerformanceClient struct {
-	cpuPerformanceListener map[string]message.CPUPerformanceListener
-	mutex                  sync.Mutex
-}
-
-type MemoryPerformanceClient struct {
-	memoryPerformanceListener map[string]message.MemoryPerformanceListener
-	mutex                     sync.Mutex
+	cpuInfoClient           Client[CPUInfoMessage]
+	cpuPerformanceClient    Client[CPUPerformanceMessage]
+	memoryPerformanceClient Client[MemoryPerformanceMessage]
+	uptimeClient            Client[UptimeMessage]
 }
 
 func newSSH(port int, host, user, passwd string) (*SSH, error) {
@@ -65,23 +118,19 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		_ = sshClient.Close()
 		return nil, errors.New(errText)
 	}
+
 	return &SSH{
-		Key:        generalKey(port, host, user),
-		Port:       port,
-		Host:       host,
-		User:       user,
-		sshClient:  sshClient,
-		sftpClient: sftpClient,
-		stop:       make(chan int),
-		cpuInfoClient: CPUInfoClient{
-			cpuInfoListener: make(map[string]message.CPUInfoListener, 0),
-		},
-		cpuPerformanceClient: CPUPerformanceClient{
-			cpuPerformanceListener: make(map[string]message.CPUPerformanceListener, 0),
-		},
-		memoryPerformanceClient: MemoryPerformanceClient{
-			memoryPerformanceListener: make(map[string]message.MemoryPerformanceListener, 0),
-		},
+		Key:                     generalKey(port, host, user),
+		Port:                    port,
+		Host:                    host,
+		User:                    user,
+		sshClient:               sshClient,
+		sftpClient:              sftpClient,
+		stop:                    make(chan int),
+		cpuInfoClient:           NewClient[CPUInfoMessage]("/proc/cpuinfo"),
+		cpuPerformanceClient:    NewClient[CPUPerformanceMessage]("/proc/stat"),
+		memoryPerformanceClient: NewClient[MemoryPerformanceMessage]("/proc/meminfo"),
+		uptimeClient:            NewClient[UptimeMessage]("/proc/uptime"),
 	}, nil
 }
 
@@ -99,149 +148,35 @@ func (h *SSH) Close() {
 }
 
 func (h *SSH) startAllMonitor() {
-	h.wg.Add(1)
-	go h.monitorCPUInfo()
-	h.wg.Add(1)
-	go h.monitorCPUPerformance()
-	h.wg.Add(1)
-	go h.monitorMemoryPerformance()
+	h.wg.Add(4)
+	go h.cpuInfoClient.monitor(h, parseCPUInfoMessage, 10)
+	go h.cpuPerformanceClient.monitor(h, parseCPUPerformanceMessage, 2)
+	go h.memoryPerformanceClient.monitor(h, parseMemoryPerformanceMessage, 2)
+	go h.uptimeClient.monitor(h, parseUptimeMessage, 2)
 }
 
-func (h *SSH) RegisterCPUInfoListener(key string, listener message.CPUInfoListener) {
-	h.cpuInfoClient.mutex.Lock()
-	defer h.cpuInfoClient.mutex.Unlock()
-	h.cpuInfoClient.cpuInfoListener[key] = listener
-}
-
-func (h *SSH) RemoveCPUInfoListener(key string) {
-	h.cpuInfoClient.mutex.Lock()
-	defer h.cpuInfoClient.mutex.Unlock()
-	delete(h.cpuInfoClient.cpuInfoListener, key)
-}
-
-func (h *SSH) monitorCPUInfo() {
-
-	where := "cpu info"
-	for {
-		select {
-		case s, ok := <-h.stop:
-			if !ok {
-				h.wg.Done()
-				return
-			} else {
-				log.Printf("Unexpect recv %d", s)
-			}
-		default:
-			srcFile, err := h.sftpClient.OpenFile("/proc/cpuinfo", os.O_RDONLY)
-			if err != nil {
-				log.Printf("Read %s file fail : %v", where, err)
-			}
-			s, err := ioutil.ReadAll(srcFile)
-			err = srcFile.Close()
-			if err != nil {
-				log.Printf("Close %s file fail : %v", where, err)
-			}
-			m := parseCPUInfoMessage(h.Port, h.Host, h.User, string(s))
-			h.cpuInfoClient.mutex.Lock()
-			for _, l := range h.cpuInfoClient.cpuInfoListener {
-				l(m)
-			}
-			h.cpuInfoClient.mutex.Unlock()
-		}
-		time.Sleep(10 * time.Second)
+func (h *SSH) RegisterAllListener(key string, listeners AllListener) {
+	if listeners.CPUInfoListener != nil {
+		h.cpuInfoClient.RegisterHandler(key, listeners.CPUInfoListener)
+	}
+	if listeners.CPUPerformanceListener != nil {
+		h.cpuPerformanceClient.RegisterHandler(key, listeners.CPUPerformanceListener)
+	}
+	if listeners.MemoryPerformanceListener != nil {
+		h.memoryPerformanceClient.RegisterHandler(key, listeners.MemoryPerformanceListener)
+	}
+	if listeners.UptimeListener != nil {
+		h.uptimeClient.RegisterHandler(key, listeners.UptimeListener)
 	}
 }
 
-func (h *SSH) RegisterCPUPerformanceListener(key string, listener message.CPUPerformanceListener) {
-	h.cpuPerformanceClient.mutex.Lock()
-	defer h.cpuPerformanceClient.mutex.Unlock()
-	h.cpuPerformanceClient.cpuPerformanceListener[key] = listener
+func (h *SSH) RemoveAllListener(key string) {
+	h.cpuInfoClient.RemoveHandler(key)
+	h.cpuPerformanceClient.RemoveHandler(key)
+	h.memoryPerformanceClient.RemoveHandler(key)
+	h.uptimeClient.RemoveHandler(key)
 }
 
-func (h *SSH) RemoveCPUPerformanceListener(key string) {
-	h.cpuPerformanceClient.mutex.Lock()
-	defer h.cpuPerformanceClient.mutex.Unlock()
-	delete(h.cpuPerformanceClient.cpuPerformanceListener, key)
-}
-
-func (h *SSH) monitorCPUPerformance() {
-
-	where := "cpu performance"
-	old := ""
-	for {
-		select {
-		case s, ok := <-h.stop:
-			if !ok {
-				h.wg.Done()
-				return
-			} else {
-				log.Printf("Unexpect recv %d", s)
-			}
-		default:
-			srcFile, err := h.sftpClient.OpenFile("/proc/stat", os.O_RDONLY)
-			if err != nil {
-				log.Printf("Read %s file fail : %v", where, err)
-			}
-			s, err := ioutil.ReadAll(srcFile)
-			err = srcFile.Close()
-			if err != nil {
-				log.Printf("Close %s file fail : %v", where, err)
-			}
-			if old != "" {
-				m := parseCPUPerformanceMessage(h.Port, h.Host, h.User, old, string(s))
-				h.cpuPerformanceClient.mutex.Lock()
-				for _, l := range h.cpuPerformanceClient.cpuPerformanceListener {
-					l(m)
-				}
-				h.cpuPerformanceClient.mutex.Unlock()
-			}
-			old = string(s)
-		}
-		time.Sleep(3 * time.Second)
-	}
-}
-
-func (h *SSH) RegisterMemoryPerformanceListener(key string, listener message.MemoryPerformanceListener) {
-	h.memoryPerformanceClient.mutex.Lock()
-	defer h.memoryPerformanceClient.mutex.Unlock()
-	h.memoryPerformanceClient.memoryPerformanceListener[key] = listener
-}
-
-func (h *SSH) RemoveMemoryPerformanceListener(key string) {
-	h.memoryPerformanceClient.mutex.Lock()
-	defer h.memoryPerformanceClient.mutex.Unlock()
-	delete(h.memoryPerformanceClient.memoryPerformanceListener, key)
-}
-
-func (h *SSH) monitorMemoryPerformance() {
-
-	where := "memory performance"
-	for {
-		select {
-		case s, ok := <-h.stop:
-			if !ok {
-				h.wg.Done()
-				return
-			} else {
-				log.Printf("Unexpect recv %d", s)
-			}
-		default:
-			srcFile, err := h.sftpClient.OpenFile("/proc/meminfo", os.O_RDONLY)
-			if err != nil {
-				log.Printf("Read %s file fail : %v", where, err)
-			}
-			s, err := ioutil.ReadAll(srcFile)
-			err = srcFile.Close()
-			if err != nil {
-				log.Printf("Close %s file fail : %v", where, err)
-			}
-			m := parseMemoryPerformanceMessage(h.Port, h.Host, h.User, string(s))
-			h.memoryPerformanceClient.mutex.Lock()
-			for _, l := range h.memoryPerformanceClient.memoryPerformanceListener {
-				l(m)
-			}
-			h.memoryPerformanceClient.mutex.Unlock()
-		}
-		time.Sleep(3 * time.Second)
-	}
+func (h *SSH) LenListener() int {
+	return h.cpuInfoClient.LenListener()
 }
