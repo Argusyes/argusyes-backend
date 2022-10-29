@@ -13,16 +13,16 @@ type Parser struct {
 	CPUProcessorNum int64
 }
 
-func (p *Parser) parseCPUInfoMessage(port int, host, user, _, new string) *CPUInfoMessage {
+func (p *Parser) parseCPUInfoMessage(c MonitorContext) *CPUInfoMessage {
 	m := &CPUInfoMessage{
 		Message: Message{
-			Port: port,
-			Host: host,
-			User: user,
+			Port: c.port,
+			Host: c.host,
+			User: c.user,
 		},
 		CPUInfoMap: make(map[int64]CPUInfo),
 	}
-	cpus := strings.Split(new, "\n\n")
+	cpus := strings.Split(c.newS, "\n\n")
 	for _, cpu := range cpus {
 		cpu = strings.TrimSpace(cpu)
 		if len(cpu) == 0 {
@@ -183,17 +183,17 @@ func (p *Parser) parseCPUInfoMessage(port int, host, user, _, new string) *CPUIn
 	return m
 }
 
-func (p *Parser) parseCPUPerformanceMessage(port int, host, user, old, new string) *CPUPerformanceMessage {
-	if old == "" {
+func (p *Parser) parseCPUPerformanceMessage(c MonitorContext) *CPUPerformanceMessage {
+	if c.oldS == "" {
 		return nil
 	}
 	// Linux 时间片默认为 10ms
 	jiffies := int64(10)
 	m := &CPUPerformanceMessage{
 		Message: Message{
-			Port: port,
-			Host: host,
-			User: user,
+			Port: c.port,
+			Host: c.host,
+			User: c.user,
 		},
 		Total:             CPUPerformanceTotal{},
 		CPUPerformanceMap: make(map[int64]CPUPerformance),
@@ -203,8 +203,8 @@ func (p *Parser) parseCPUPerformanceMessage(port int, host, user, old, new strin
 	if reg == nil {
 		log.Fatalf("regexp parse fail : cpu performance")
 	}
-	oldResult := reg.FindAllStringSubmatch(old, -1)
-	newResult := reg.FindAllStringSubmatch(new, -1)
+	oldResult := reg.FindAllStringSubmatch(c.oldS, -1)
+	newResult := reg.FindAllStringSubmatch(c.newS, -1)
 
 	if oldResult == nil || newResult == nil {
 		log.Printf("parse cpu performance fail")
@@ -364,12 +364,12 @@ func (p *Parser) parseCPUPerformanceMessage(port int, host, user, old, new strin
 	return m
 }
 
-func (p *Parser) parseMemoryPerformanceMessage(port int, host, user, _, new string) *MemoryPerformanceMessage {
+func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerformanceMessage {
 	m := &MemoryPerformanceMessage{
 		Message: Message{
-			Port: port,
-			Host: host,
-			User: user,
+			Port: c.port,
+			Host: c.host,
+			User: c.user,
 		},
 		Memory: MemoryPerformance{},
 	}
@@ -378,7 +378,7 @@ func (p *Parser) parseMemoryPerformanceMessage(port int, host, user, _, new stri
 	if MemTotalReg == nil {
 		log.Fatalf("regexp parse fail : memory total")
 	}
-	MemTotalRegResults := MemTotalReg.FindAllStringSubmatch(new, -1)
+	MemTotalRegResults := MemTotalReg.FindAllStringSubmatch(c.newS, -1)
 	if MemTotalRegResults == nil {
 		log.Printf("parse memory total fail")
 		return nil
@@ -393,7 +393,7 @@ func (p *Parser) parseMemoryPerformanceMessage(port int, host, user, _, new stri
 	if SwapTotalReg == nil {
 		log.Fatalf("regexp parse fail : swap total")
 	}
-	SwapTotalRegResult := SwapTotalReg.FindAllStringSubmatch(new, -1)
+	SwapTotalRegResult := SwapTotalReg.FindAllStringSubmatch(c.newS, -1)
 	if SwapTotalRegResult == nil {
 		log.Printf("parse swap total fail")
 		return nil
@@ -404,7 +404,7 @@ func (p *Parser) parseMemoryPerformanceMessage(port int, host, user, _, new stri
 	}
 	m.Memory.SwapTotal = roundMem(SwapTotal)
 
-	lines := strings.Split(new, "\n")
+	lines := strings.Split(c.newS, "\n")
 	for _, line := range lines {
 		if !strings.Contains(line, ":") {
 			continue
@@ -466,16 +466,16 @@ func (p *Parser) parseMemoryPerformanceMessage(port int, host, user, _, new stri
 	return m
 }
 
-func (p *Parser) parseUptimeMessage(port int, host, user, _, new string) *UptimeMessage {
+func (p *Parser) parseUptimeMessage(c MonitorContext) *UptimeMessage {
 	m := &UptimeMessage{
 		Message: Message{
-			Port: port,
-			Host: host,
-			User: user,
+			Port: c.port,
+			Host: c.host,
+			User: c.user,
 		},
 		Uptime: Uptime{},
 	}
-	uptime, err := strconv.ParseFloat(strings.Split(new, " ")[0], 64)
+	uptime, err := strconv.ParseFloat(strings.Split(c.newS, " ")[0], 64)
 	if err != nil {
 		log.Printf("parse float fail : %v", err)
 		return nil
@@ -490,20 +490,20 @@ func (p *Parser) parseUptimeMessage(port int, host, user, _, new string) *Uptime
 	return m
 }
 
-func (p *Parser) parseLoadavgMessage(port int, host, user, _, new string) *LoadavgMessage {
+func (p *Parser) parseLoadavgMessage(c MonitorContext) *LoadavgMessage {
 	m := &LoadavgMessage{
 		Message: Message{
-			Port: port,
-			Host: host,
-			User: user,
+			Port: c.port,
+			Host: c.host,
+			User: c.user,
 		},
 		Loadavg: Loadavg{},
 	}
 	if p.CPUProcessorNum == 0 {
 		return nil
 	}
-	new = strings.ReplaceAll(new, "\n", "")
-	ss := strings.Split(new, " ")
+	n := strings.ReplaceAll(c.newS, "\n", "")
+	ss := strings.Split(n, " ")
 	ok := true
 	if m.Loadavg.One, ok = parseFloat64(ss[0]); !ok {
 		return nil
@@ -527,6 +527,18 @@ func (p *Parser) parseLoadavgMessage(port int, host, user, _, new string) *Loada
 	if m.Loadavg.LastPid, ok = parseInt64(ss[4]); !ok {
 		return nil
 	}
+	return m
+}
+
+func (p *Parser) parseNetDevMessage(c MonitorContext) *NetDevMessage {
+	m := &NetDevMessage{
+		Message: Message{
+			Port: c.port,
+			Host: c.host,
+			User: c.user,
+		},
+	}
+
 	return m
 }
 

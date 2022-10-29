@@ -12,6 +12,17 @@ import (
 	"time"
 )
 
+type MonitorContext struct {
+	client  *sftp.Client
+	port    int
+	host    string
+	user    string
+	oldS    string
+	newS    string
+	oldTime time.Time
+	newTime time.Time
+}
+
 type Client[M any] struct {
 	listener map[string]Listener[M]
 	mutex    sync.Mutex
@@ -45,8 +56,9 @@ func (c *Client[M]) RemoveHandler(key string) {
 	c.mutex.Unlock()
 }
 
-func (c *Client[M]) monitor(h *SSH, f func(port int, host, user, old, new string) *M, second int) {
-	old := ""
+func (c *Client[M]) monitor(h *SSH, f func(context MonitorContext) *M, second int) {
+	oldS := ""
+	oldTime := time.Now()
 	for {
 		select {
 		case s, ok := <-h.stop:
@@ -61,16 +73,27 @@ func (c *Client[M]) monitor(h *SSH, f func(port int, host, user, old, new string
 			if err != nil {
 				log.Printf("Read %s file fail : %v", c.where, err)
 			}
-			s, err := ioutil.ReadAll(srcFile)
+			newS, err := ioutil.ReadAll(srcFile)
+			newTime := time.Now()
 			err = srcFile.Close()
 			if err != nil {
 				log.Printf("Close %s file fail : %v", c.where, err)
 			}
-			m := f(h.Port, h.Host, h.User, old, string(s))
+			m := f(MonitorContext{
+				client:  h.sftpClient,
+				port:    h.Port,
+				host:    h.Host,
+				user:    h.User,
+				oldS:    oldS,
+				newS:    string(newS),
+				oldTime: oldTime,
+				newTime: newTime,
+			})
 			if m != nil {
 				c.Handler(*m)
 			}
-			old = string(s)
+			oldS = string(newS)
+			oldTime = newTime
 		}
 		time.Sleep(time.Duration(second) * time.Second)
 	}
@@ -95,6 +118,7 @@ type SSH struct {
 	memoryPerformanceClient Client[MemoryPerformanceMessage]
 	uptimeClient            Client[UptimeMessage]
 	loadavgClient           Client[LoadavgMessage]
+	netDecClient            Client[NetDevMessage]
 }
 
 func newSSH(port int, host, user, passwd string) (*SSH, error) {
@@ -135,6 +159,7 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		memoryPerformanceClient: NewClient[MemoryPerformanceMessage]("/proc/meminfo"),
 		uptimeClient:            NewClient[UptimeMessage]("/proc/uptime"),
 		loadavgClient:           NewClient[LoadavgMessage]("/proc/loadavg"),
+		netDecClient:            NewClient[NetDevMessage]("/proc/net/dev"),
 	}, nil
 }
 
@@ -152,12 +177,13 @@ func (h *SSH) Close() {
 }
 
 func (h *SSH) startAllMonitor() {
-	h.wg.Add(5)
+	h.wg.Add(6)
 	go h.cpuInfoClient.monitor(h, h.parser.parseCPUInfoMessage, 10)
 	go h.cpuPerformanceClient.monitor(h, h.parser.parseCPUPerformanceMessage, 2)
 	go h.memoryPerformanceClient.monitor(h, h.parser.parseMemoryPerformanceMessage, 2)
 	go h.uptimeClient.monitor(h, h.parser.parseUptimeMessage, 2)
 	go h.loadavgClient.monitor(h, h.parser.parseLoadavgMessage, 2)
+	go h.netDecClient.monitor(h, h.parser.parseNetDevMessage, 2)
 }
 
 func (h *SSH) RegisterAllListener(key string, listeners AllListener) {
@@ -176,6 +202,9 @@ func (h *SSH) RegisterAllListener(key string, listeners AllListener) {
 	if listeners.LoadavgListener != nil {
 		h.loadavgClient.RegisterHandler(key, listeners.LoadavgListener)
 	}
+	if listeners.NetDevListener != nil {
+		h.netDecClient.RegisterHandler(key, listeners.NetDevListener)
+	}
 }
 
 func (h *SSH) RemoveAllListener(key string) {
@@ -184,6 +213,7 @@ func (h *SSH) RemoveAllListener(key string) {
 	h.memoryPerformanceClient.RemoveHandler(key)
 	h.uptimeClient.RemoveHandler(key)
 	h.loadavgClient.RemoveHandler(key)
+	h.netDecClient.RemoveHandler(key)
 }
 
 func (h *SSH) LenListener() int {

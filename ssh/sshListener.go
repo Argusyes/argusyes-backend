@@ -6,4 +6,5 @@ type AllListener struct {
 	MemoryPerformanceListener Listener[MemoryPerformanceMessage]
 	UptimeListener            Listener[UptimeMessage]
 	LoadavgListener           Listener[LoadavgMessage]
+	NetDevListener            Listener[NetDevMessage]
 }

@@ -154,3 +154,12 @@ type Loadavg struct {
 	Active        int64   `json:"active"`
 	LastPid       int64   `json:"lastPid"`
 }
+
+type NetDevMessage struct {
+	Message
+	NetDevMap map[string]NetDev `json:"netDev"`
+}
+
+type NetDev struct {
+	Name string `json:"name"`
+}
