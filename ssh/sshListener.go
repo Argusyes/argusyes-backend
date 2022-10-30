@@ -7,4 +7,5 @@ type AllListener struct {
 	UptimeListener            Listener[UptimeMessage]
 	LoadavgListener           Listener[LoadavgMessage]
 	NetDevListener            Listener[NetDevMessage]
+	NetStatListener           Listener[NetStatMessage]
 }

@@ -123,6 +123,7 @@ type SSH struct {
 	uptimeClient            Client[UptimeMessage]
 	loadavgClient           Client[LoadavgMessage]
 	netDecClient            Client[NetDevMessage]
+	netStatClient           Client[NetStatMessage]
 }
 
 func newSSH(port int, host, user, passwd string) (*SSH, error) {
@@ -164,6 +165,7 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		uptimeClient:            NewClient[UptimeMessage]("/proc/uptime"),
 		loadavgClient:           NewClient[LoadavgMessage]("/proc/loadavg"),
 		netDecClient:            NewClient[NetDevMessage]("/proc/net/dev"),
+		netStatClient:           NewClient[NetStatMessage]("/proc/net/snmp"),
 	}, nil
 }
 
@@ -181,13 +183,14 @@ func (h *SSH) Close() {
 }
 
 func (h *SSH) startAllMonitor() {
-	h.wg.Add(6)
+	h.wg.Add(7)
 	go h.cpuInfoClient.monitor(h, h.parser.parseCPUInfoMessage, 10)
 	go h.cpuPerformanceClient.monitor(h, h.parser.parseCPUPerformanceMessage, 2)
 	go h.memoryPerformanceClient.monitor(h, h.parser.parseMemoryPerformanceMessage, 2)
 	go h.uptimeClient.monitor(h, h.parser.parseUptimeMessage, 2)
 	go h.loadavgClient.monitor(h, h.parser.parseLoadavgMessage, 2)
 	go h.netDecClient.monitor(h, h.parser.parseNetDevMessage, 2)
+	go h.netStatClient.monitor(h, h.parser.parseNetStatMessage, 2)
 }
 
 func (h *SSH) RegisterAllListener(key string, listeners AllListener) {
@@ -209,6 +212,9 @@ func (h *SSH) RegisterAllListener(key string, listeners AllListener) {
 	if listeners.NetDevListener != nil {
 		h.netDecClient.RegisterHandler(key, listeners.NetDevListener)
 	}
+	if listeners.NetStatListener != nil {
+		h.netStatClient.RegisterHandler(key, listeners.NetStatListener)
+	}
 }
 
 func (h *SSH) RemoveAllListener(key string) {
@@ -218,6 +224,7 @@ func (h *SSH) RemoveAllListener(key string) {
 	h.uptimeClient.RemoveHandler(key)
 	h.loadavgClient.RemoveHandler(key)
 	h.netDecClient.RemoveHandler(key)
+	h.netStatClient.RemoveHandler(key)
 }
 
 func (h *SSH) LenListener() int {

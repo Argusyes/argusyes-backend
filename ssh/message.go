@@ -162,26 +162,49 @@ type NetDevMessage struct {
 }
 
 type NetDevTotal struct {
-	UpBytesStr   string `json:"UpBytesStr"`
-	UpBytes      int64  `json:"UpBytes"`
-	DownBytesStr string `json:"DownBytesStr"`
-	DownBytes    int64  `json:"DownBytes"`
-	UpPackets    int64  `json:"UpPackets"`
-	DownPackets  int64  `json:"DownPackets"`
-	UpSpeed      string `json:"UpSpeed"`
-	DownSpeed    string `json:"DownSpeed"`
+	UpBytesStr   string `json:"upBytesStr"`
+	UpBytes      int64  `json:"upBytes"`
+	DownBytesStr string `json:"downBytesStr"`
+	DownBytes    int64  `json:"downBytes"`
+	UpPackets    int64  `json:"upPackets"`
+	DownPackets  int64  `json:"downPackets"`
+	UpSpeed      string `json:"upSpeed"`
+	DownSpeed    string `json:"downSpeed"`
 }
 
 type NetDev struct {
 	Name         string   `json:"name"`
-	IP           []string `json:"IP"`
-	Virtual      bool     `json:"Virtual"`
-	UpBytesStr   string   `json:"UpBytesStr"`
-	UpBytes      int64    `json:"UpBytes"`
-	DownBytesStr string   `json:"DownBytesStr"`
-	DownBytes    int64    `json:"DownBytes"`
-	UpPackets    int64    `json:"UpPackets"`
-	DownPackets  int64    `json:"DownPackets"`
-	UpSpeed      string   `json:"UpSpeed"`
-	DownSpeed    string   `json:"DownSpeed"`
+	IP           []string `json:"ip"`
+	Virtual      bool     `json:"virtual"`
+	UpBytesStr   string   `json:"upBytesStr"`
+	UpBytes      int64    `json:"upBytes"`
+	DownBytesStr string   `json:"downBytesStr"`
+	DownBytes    int64    `json:"downBytes"`
+	UpPackets    int64    `json:"upPackets"`
+	DownPackets  int64    `json:"downPackets"`
+	UpSpeed      string   `json:"upSpeed"`
+	DownSpeed    string   `json:"downSpeed"`
+}
+
+type NetStatMessage struct {
+	Message
+	NetTCP NetTCP `json:"netTCP"`
+	NetUDP NetUDP `json:"netUDP"`
+}
+
+type NetUDP struct {
+	InDatagrams      int64 `json:"inDatagrams"`
+	OutDatagrams     int64 `json:"outDatagrams"`
+	ReceiveBufErrors int64 `json:"receiveBufErrors"`
+	SendBufErrors    int64 `json:"sendBufErrors"`
+}
+type NetTCP struct {
+	ActiveOpens     int64   `json:"activeOpens"`
+	PassiveOpens    int64   `json:"passiveOpens"`
+	FailOpens       int64   `json:"failOpens"`
+	CurrConn        int64   `json:"currConn"`
+	InSegments      int64   `json:"inSegments"`
+	OutSegments     int64   `json:"outSegments"`
+	ReTransSegments int64   `json:"reTransSegments"`
+	ReTransRate     float64 `json:"reTransRate"`
 }

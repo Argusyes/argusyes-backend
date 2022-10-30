@@ -706,6 +706,75 @@ func (p *Parser) parseNetDevMessage(c MonitorContext) *NetDevMessage {
 	return m
 }
 
+func (p *Parser) parseNetStatMessage(c MonitorContext) *NetStatMessage {
+	m := &NetStatMessage{
+		Message{
+			Port: c.port,
+			Host: c.host,
+			User: c.user,
+		},
+		NetTCP{},
+		NetUDP{},
+	}
+
+	TCPReg := regexp.MustCompile(`Tcp:\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d-]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\n`)
+	if TCPReg == nil {
+		log.Fatalf("regexp parse fail : net stat tcp")
+	}
+	TCPRegResults := TCPReg.FindAllStringSubmatch(c.newS, -1)
+	if TCPRegResults == nil {
+		log.Printf("parse net stat tcp fail")
+		return nil
+	}
+
+	UDPReg := regexp.MustCompile(`Udp:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)[^\n]+\n`)
+	if UDPReg == nil {
+		log.Fatalf("regexp parse fail : net stat udp")
+	}
+	UDPRegResults := UDPReg.FindAllStringSubmatch(c.newS, -1)
+	if UDPRegResults == nil {
+		log.Printf("parse net stat udp fail")
+		return nil
+	}
+	ok := true
+	if m.NetTCP.ActiveOpens, ok = parseInt64(TCPRegResults[0][5]); !ok {
+		return nil
+	}
+	if m.NetTCP.PassiveOpens, ok = parseInt64(TCPRegResults[0][6]); !ok {
+		return nil
+	}
+	if m.NetTCP.FailOpens, ok = parseInt64(TCPRegResults[0][7]); !ok {
+		return nil
+	}
+	if m.NetTCP.CurrConn, ok = parseInt64(TCPRegResults[0][8]); !ok {
+		return nil
+	}
+	if m.NetTCP.InSegments, ok = parseInt64(TCPRegResults[0][9]); !ok {
+		return nil
+	}
+	if m.NetTCP.OutSegments, ok = parseInt64(TCPRegResults[0][10]); !ok {
+		return nil
+	}
+	if m.NetTCP.ReTransSegments, ok = parseInt64(TCPRegResults[0][11]); !ok {
+		return nil
+	}
+	m.NetTCP.ReTransRate = roundFloat(float64(m.NetTCP.ReTransSegments)/float64(m.NetTCP.OutSegments), 2)
+
+	if m.NetUDP.InDatagrams, ok = parseInt64(UDPRegResults[0][1]); !ok {
+		return nil
+	}
+	if m.NetUDP.OutDatagrams, ok = parseInt64(UDPRegResults[0][4]); !ok {
+		return nil
+	}
+	if m.NetUDP.ReceiveBufErrors, ok = parseInt64(UDPRegResults[0][5]); !ok {
+		return nil
+	}
+	if m.NetUDP.SendBufErrors, ok = parseInt64(UDPRegResults[0][6]); !ok {
+		return nil
+	}
+
+	return m
+}
 func parseInt64(s string) (int64, bool) {
 	parseInt, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
