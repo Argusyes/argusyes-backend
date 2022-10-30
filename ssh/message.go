@@ -213,3 +213,27 @@ type TempMessage struct {
 	Message
 	TempMap map[string]int64 `json:"tempMap"`
 }
+
+type DiskMessage struct {
+	Message
+	DiskMap   map[string]Disk `json:"diskMap"`
+	Write     string          `json:"write"`
+	Read      string          `json:"read"`
+	WriteRate string          `json:"writeRate"`
+	ReadRate  string          `json:"readRate"`
+}
+
+type Disk struct {
+	DevName    string  `json:"devName"`
+	Mount      string  `json:"mount"`
+	FileSystem string  `json:"fileSystem"`
+	Free       string  `json:"free"`
+	Total      string  `json:"total"`
+	FreeRate   float64 `json:"freeRate"`
+	Write      string  `json:"write"`
+	Read       string  `json:"read"`
+	WriteRate  string  `json:"writeRate"`
+	ReadRate   string  `json:"readRate"`
+	WriteIOPS  int64   `json:"writeIOPS"`
+	ReadIOPS   int64   `json:"readIOPS"`
+}

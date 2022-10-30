@@ -9,4 +9,5 @@ type AllListener struct {
 	NetDevListener            Listener[NetDevMessage]
 	NetStatListener           Listener[NetStatMessage]
 	TempListener              Listener[TempMessage]
+	DiskListener              Listener[DiskMessage]
 }

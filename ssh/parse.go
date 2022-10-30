@@ -803,6 +803,159 @@ func (p *Parser) parseTempMessage(c MonitorContext) *TempMessage {
 	return m
 }
 
+func (p *Parser) parseDiskMessage(c MonitorContext) *DiskMessage {
+	if c.oldS == "" {
+		return nil
+	}
+	m := &DiskMessage{
+		Message: Message{
+			Port: c.port,
+			Host: c.host,
+			User: c.user,
+		},
+		DiskMap: make(map[string]Disk, 0),
+	}
+	mounts, ok := readFile("/proc/mounts", c.client, true)
+	if !ok {
+		return nil
+	}
+	MountReg := regexp.MustCompile(`(\S+) (\S+) (\S+) (\S+) (\d+) (\d+)\n`)
+	if MountReg == nil {
+		log.Fatalf("regexp parse fail : mounts")
+	}
+	MountStatsRegResults := MountReg.FindAllStringSubmatch(mounts, -1)
+	if MountStatsRegResults == nil {
+		log.Printf("parse mounts fail")
+		return nil
+	}
+	mountSet := mapSet.NewSet[string]()
+	mountMap := make(map[string][]string, 0)
+	for _, ss := range MountStatsRegResults {
+		if ss[3] == "ext4" || ss[3] == "vfat" {
+			mountMap[ss[1]] = ss
+			mountSet.Add(ss[1])
+		}
+	}
+
+	DiskReg := regexp.MustCompile(`(\d+)\s+(\d+)\s+(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)[^\n]+\n`)
+	if DiskReg == nil {
+		log.Fatalf("regexp parse fail : disk")
+	}
+	oldDiskRegResults := DiskReg.FindAllStringSubmatch(c.oldS, -1)
+	newDiskRegResults := DiskReg.FindAllStringSubmatch(c.newS, -1)
+	diff := c.newTime.Sub(c.oldTime).Milliseconds()
+	if oldDiskRegResults == nil || newDiskRegResults == nil {
+		log.Printf("parse disk fail")
+		return nil
+	}
+	oldDiskMap := make(map[string][]string, 0)
+	newDiskMap := make(map[string][]string, 0)
+	for _, ss := range oldDiskRegResults {
+		devName := fmt.Sprintf("/dev/%s", ss[3])
+		if mountSet.Contains(devName) {
+			oldDiskMap[devName] = ss
+		}
+	}
+	for _, ss := range newDiskRegResults {
+		devName := fmt.Sprintf("/dev/%s", ss[3])
+		if mountSet.Contains(devName) {
+			newDiskMap[devName] = ss
+		}
+	}
+
+	OldTotalWrite := int64(0)
+	OldTotalRead := int64(0)
+	NewTotalWrite := int64(0)
+	NewTotalRead := int64(0)
+	SectorSize := int64(512)
+	it := mountSet.Iterator()
+	for devName := range it.C {
+		oldSS, ok := oldDiskMap[devName]
+		if !ok {
+			continue
+		}
+		newSS, ok := newDiskMap[devName]
+		if !ok {
+			continue
+		}
+		mountSS, ok := mountMap[devName]
+		if !ok {
+			continue
+		}
+		d := Disk{
+			DevName: devName,
+		}
+
+		d.Mount = mountSS[2]
+		d.FileSystem = mountSS[3]
+		stat, err := c.client.StatVFS(d.Mount)
+		if err != nil {
+			continue
+		}
+
+		total := int64(stat.Blocks * stat.Bsize)
+		free := int64(stat.Bfree * stat.Bsize)
+		d.Free = roundMem(free)
+		d.Total = roundMem(total)
+		d.FreeRate = roundFloat(float64(free)/float64(total), 2)
+
+		oldWriteSector, ok := parseInt64(oldSS[10])
+		if !ok {
+			continue
+		}
+		oldWrite := SectorSize * oldWriteSector
+		newWriteSector, ok := parseInt64(newSS[10])
+		if !ok {
+			continue
+		}
+		newWrite := SectorSize * newWriteSector
+		d.Write = roundMem(newWrite)
+		d.WriteRate = fmt.Sprintf("%s/s", roundMem((newWrite-oldWrite)*1000/diff))
+		oldReadSector, ok := parseInt64(oldSS[6])
+		if !ok {
+			continue
+		}
+		oldRead := SectorSize * oldReadSector
+		newReadSector, ok := parseInt64(newSS[6])
+		if !ok {
+			continue
+		}
+		newRead := SectorSize * newReadSector
+		d.Read = roundMem(newRead)
+		d.ReadRate = fmt.Sprintf("%s/s", roundMem((newRead-oldRead)*1000/diff))
+
+		OldTotalWrite += oldWrite
+		OldTotalRead += oldRead
+		NewTotalWrite += newWrite
+		NewTotalRead += newRead
+
+		oldWriteIO, ok := parseInt64(oldSS[8])
+		if !ok {
+			continue
+		}
+		newWriteIO, ok := parseInt64(newSS[8])
+		if !ok {
+			continue
+		}
+		d.WriteIOPS = (newWriteIO - oldWriteIO) * 1000 / diff
+		oldReadIO, ok := parseInt64(oldSS[4])
+		if !ok {
+			continue
+		}
+		newReadIO, ok := parseInt64(newSS[4])
+		if !ok {
+			continue
+		}
+		d.ReadIOPS = (newReadIO - oldReadIO) * 1000 / diff
+
+		m.DiskMap[devName] = d
+	}
+	m.Write = roundMem(NewTotalWrite)
+	m.Read = roundMem(NewTotalRead)
+	m.WriteRate = fmt.Sprintf("%s/s", roundMem((NewTotalWrite-OldTotalWrite)*1000/diff))
+	m.ReadRate = fmt.Sprintf("%s/s", roundMem((NewTotalRead-OldTotalRead)*1000/diff))
+	return m
+}
 func parseInt64(s string) (int64, bool) {
 	parseInt, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {

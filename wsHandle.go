@@ -115,6 +115,7 @@ func getSSHListener(conn *wsocket.Connect) ssh.AllListener {
 		NetDevListener:            listenerTemplate[ssh.NetDevMessage](conn, "netDev"),
 		NetStatListener:           listenerTemplate[ssh.NetStatMessage](conn, "netStat"),
 		TempListener:              listenerTemplate[ssh.TempMessage](conn, "temp"),
+		DiskListener:              listenerTemplate[ssh.DiskMessage](conn, "disk"),
 	}
 }
 
