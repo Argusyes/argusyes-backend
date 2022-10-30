@@ -23,7 +23,7 @@ type WSMonitorSSHRequest struct {
 	Method string  `json:"method" validate:"required"`
 	Params []struct {
 		Port   int    `json:"port"`
-		Host   string `json:"host" validate:"ip_addr"`
+		Host   string `json:"host" validate:"required"`
 		User   string `json:"user" validate:"required"`
 		Passwd string `json:"passwd" validate:"required"`
 	} `json:"params" validate:"required,dive"`
@@ -34,7 +34,7 @@ type WSUnMonitorSSHRequest struct {
 	Method string  `json:"method" validate:"required"`
 	Params []struct {
 		Port int    `json:"port" validate:"required"`
-		Host string `json:"host" validate:"ip_addr"`
+		Host string `json:"host" validate:"required"`
 		User string `json:"user" validate:"required"`
 	} `json:"params" validate:"required,dive"`
 }
@@ -62,7 +62,7 @@ type WSMonitorSSHResponse struct {
 
 type WSMonitorSSHResponseResult struct {
 	Port    int     `json:"port" validate:"required"`
-	Host    string  `json:"host" validate:"ip_addr"`
+	Host    string  `json:"host" validate:"required"`
 	User    string  `json:"user" validate:"required"`
 	Monitor bool    `json:"monitor"`
 	Error   *string `json:"error"`
@@ -76,7 +76,7 @@ type WSUnMonitorSSHResponse struct {
 
 type WSUnMonitorSSHResponseResult struct {
 	Port      int     `json:"port" validate:"required"`
-	Host      string  `json:"host" validate:"ip_addr"`
+	Host      string  `json:"host" validate:"required"`
 	User      string  `json:"user" validate:"required"`
 	UnMonitor bool    `json:"unMonitor"`
 	Error     *string `json:"error"`
