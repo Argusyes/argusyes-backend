@@ -564,11 +564,11 @@ func (p *Parser) parseNetDevMessage(c MonitorContext) *NetDevMessage {
 		oldMap[strings.TrimSpace(ss[1])] = ss
 	}
 	// route info
-	route, ok := readFile("/proc/net/route", c.client)
+	route, ok := readFile("/proc/net/route", c.client, true)
 	if !ok {
 		return nil
 	}
-	fib, ok := readFile("/proc/net/fib_trie", c.client)
+	fib, ok := readFile("/proc/net/fib_trie", c.client, true)
 	if !ok {
 		return nil
 	}
@@ -775,6 +775,34 @@ func (p *Parser) parseNetStatMessage(c MonitorContext) *NetStatMessage {
 
 	return m
 }
+
+func (p *Parser) parseTempMessage(c MonitorContext) *TempMessage {
+	m := &TempMessage{
+		Message: Message{
+			Port: c.port,
+			Host: c.host,
+			User: c.user,
+		},
+		TempMap: make(map[string]int64, 0),
+	}
+	ok := true
+	if m.TempMap["zone0"], ok = parseInt64(strings.TrimSpace(c.newS)); !ok {
+		return nil
+	}
+	for i := 1; i < 10; i++ {
+		file := fmt.Sprintf("/sys/class/thermal/thermal_zone%d/temp", i)
+		zone := fmt.Sprintf("zone%d", i)
+		temp, ok := readFile(file, c.client, false)
+		if !ok {
+			break
+		}
+		if m.TempMap[zone], ok = parseInt64(strings.TrimSpace(temp)); !ok {
+			break
+		}
+	}
+	return m
+}
+
 func parseInt64(s string) (int64, bool) {
 	parseInt, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
@@ -820,20 +848,26 @@ func roundFloat(num float64, n int) float64 {
 	return value
 }
 
-func readFile(where string, client *sftp.Client) (string, bool) {
+func readFile(where string, client *sftp.Client, doLog bool) (string, bool) {
 	srcFile, err := client.OpenFile(where, os.O_RDONLY)
 	if err != nil {
-		log.Printf("Read %s file fail : %v", where, err)
+		if doLog {
+			log.Printf("Read %s file fail : %v", where, err)
+		}
 		return "", false
 	}
 	f, err := ioutil.ReadAll(srcFile)
 	if err != nil {
-		log.Printf("Read %s file fail : %v", where, err)
+		if doLog {
+			log.Printf("Read %s file fail : %v", where, err)
+		}
 		return "", false
 	}
 	err = srcFile.Close()
 	if err != nil {
-		log.Printf("Close %s file fail : %v", where, err)
+		if doLog {
+			log.Printf("Close %s file fail : %v", where, err)
+		}
 	}
 	return string(f), true
 }

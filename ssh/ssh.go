@@ -124,6 +124,7 @@ type SSH struct {
 	loadavgClient           Client[LoadavgMessage]
 	netDecClient            Client[NetDevMessage]
 	netStatClient           Client[NetStatMessage]
+	tempClient              Client[TempMessage]
 }
 
 func newSSH(port int, host, user, passwd string) (*SSH, error) {
@@ -166,6 +167,7 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		loadavgClient:           NewClient[LoadavgMessage]("/proc/loadavg"),
 		netDecClient:            NewClient[NetDevMessage]("/proc/net/dev"),
 		netStatClient:           NewClient[NetStatMessage]("/proc/net/snmp"),
+		tempClient:              NewClient[TempMessage]("/sys/class/thermal/thermal_zone0/temp"),
 	}, nil
 }
 
@@ -183,7 +185,7 @@ func (h *SSH) Close() {
 }
 
 func (h *SSH) startAllMonitor() {
-	h.wg.Add(7)
+	h.wg.Add(8)
 	go h.cpuInfoClient.monitor(h, h.parser.parseCPUInfoMessage, 10)
 	go h.cpuPerformanceClient.monitor(h, h.parser.parseCPUPerformanceMessage, 2)
 	go h.memoryPerformanceClient.monitor(h, h.parser.parseMemoryPerformanceMessage, 2)
@@ -191,6 +193,7 @@ func (h *SSH) startAllMonitor() {
 	go h.loadavgClient.monitor(h, h.parser.parseLoadavgMessage, 2)
 	go h.netDecClient.monitor(h, h.parser.parseNetDevMessage, 2)
 	go h.netStatClient.monitor(h, h.parser.parseNetStatMessage, 2)
+	go h.tempClient.monitor(h, h.parser.parseTempMessage, 2)
 }
 
 func (h *SSH) RegisterAllListener(key string, listeners AllListener) {
@@ -215,6 +218,9 @@ func (h *SSH) RegisterAllListener(key string, listeners AllListener) {
 	if listeners.NetStatListener != nil {
 		h.netStatClient.RegisterHandler(key, listeners.NetStatListener)
 	}
+	if listeners.TempListener != nil {
+		h.tempClient.RegisterHandler(key, listeners.TempListener)
+	}
 }
 
 func (h *SSH) RemoveAllListener(key string) {
@@ -225,6 +231,7 @@ func (h *SSH) RemoveAllListener(key string) {
 	h.loadavgClient.RemoveHandler(key)
 	h.netDecClient.RemoveHandler(key)
 	h.netStatClient.RemoveHandler(key)
+	h.tempClient.RemoveHandler(key)
 }
 
 func (h *SSH) LenListener() int {

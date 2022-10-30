@@ -208,3 +208,8 @@ type NetTCP struct {
 	ReTransSegments int64   `json:"reTransSegments"`
 	ReTransRate     float64 `json:"reTransRate"`
 }
+
+type TempMessage struct {
+	Message
+	TempMap map[string]int64 `json:"tempMap"`
+}

@@ -8,4 +8,5 @@ type AllListener struct {
 	LoadavgListener           Listener[LoadavgMessage]
 	NetDevListener            Listener[NetDevMessage]
 	NetStatListener           Listener[NetStatMessage]
+	TempListener              Listener[TempMessage]
 }
