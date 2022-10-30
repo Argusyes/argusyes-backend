@@ -12,15 +12,18 @@ import (
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
+type RequestHead struct {
+	Id     *string `json:"id"`
+	Method string  `json:"method" validate:"required"`
+}
+
 type WSRequest struct {
-	Id     *string     `json:"id"`
-	Method string      `json:"method" validate:"required"`
+	RequestHead
 	Params interface{} `json:"params"`
 }
 
 type WSMonitorSSHRequest struct {
-	Id     *string `json:"id" validate:"required"`
-	Method string  `json:"method" validate:"required"`
+	RequestHead
 	Params []struct {
 		Port   int    `json:"port"`
 		Host   string `json:"host" validate:"required"`
@@ -30,8 +33,7 @@ type WSMonitorSSHRequest struct {
 }
 
 type WSUnMonitorSSHRequest struct {
-	Id     *string `json:"id" validate:"required"`
-	Method string  `json:"method" validate:"required"`
+	RequestHead
 	Params []struct {
 		Port int    `json:"port" validate:"required"`
 		Host string `json:"host" validate:"required"`
@@ -39,54 +41,77 @@ type WSUnMonitorSSHRequest struct {
 	} `json:"params" validate:"required,dive"`
 }
 
+type WSStartSSHRequest struct {
+	RequestHead
+	Params []struct {
+		Port   int    `json:"port" validate:"required"`
+		Host   string `json:"host" validate:"required"`
+		User   string `json:"user" validate:"required"`
+		Passwd string `json:"passwd" validate:"required"`
+	} `json:"params" validate:"required,dive"`
+}
+
 type WSNotificationRequest struct {
-	Id     *string `json:"id"`
-	Method string  `json:"method" validate:"required"`
+	RequestHead
 	Params []struct {
 		Event   string      `json:"event" validate:"required"`
 		Message interface{} `json:"message" validate:"required"`
 	} `json:"params" validate:"required,dive"`
 }
 
+type ResponseHead struct {
+	Id    string         `json:"id" validate:"required"`
+	Error *ResponseError `json:"error"`
+}
+
+type ResponseError struct {
+	Code    int    `json:"code" validate:"required"`
+	Message string `json:"message" validate:"required"`
+}
+
 type WSResponse struct {
-	Id     string      `json:"id" validate:"required"`
-	Error  *string     `json:"error"`
+	ResponseHead
 	Result interface{} `json:"result"`
 }
 
 type WSMonitorSSHResponse struct {
-	Id     string                       `json:"id" validate:"required"`
-	Error  *string                      `json:"error"`
+	ResponseHead
 	Result []WSMonitorSSHResponseResult `json:"result" validate:"dive"`
 }
 
 type WSMonitorSSHResponseResult struct {
-	Port    int     `json:"port" validate:"required"`
-	Host    string  `json:"host" validate:"required"`
-	User    string  `json:"user" validate:"required"`
-	Monitor bool    `json:"monitor"`
-	Error   *string `json:"error"`
+	Port    int            `json:"port" validate:"required"`
+	Host    string         `json:"host" validate:"required"`
+	User    string         `json:"user" validate:"required"`
+	Monitor bool           `json:"monitor"`
+	Error   *ResponseError `json:"error"`
 }
 
 type WSUnMonitorSSHResponse struct {
-	Id     string                         `json:"id" validate:"required"`
-	Error  *string                        `json:"error"`
+	ResponseHead
 	Result []WSUnMonitorSSHResponseResult `json:"result" validate:"dive"`
 }
 
 type WSUnMonitorSSHResponseResult struct {
-	Port      int     `json:"port" validate:"required"`
-	Host      string  `json:"host" validate:"required"`
-	User      string  `json:"user" validate:"required"`
-	UnMonitor bool    `json:"unMonitor"`
-	Error     *string `json:"error"`
+	Port      int            `json:"port" validate:"required"`
+	Host      string         `json:"host" validate:"required"`
+	User      string         `json:"user" validate:"required"`
+	UnMonitor bool           `json:"unMonitor"`
+	Error     *ResponseError `json:"error"`
+}
+
+type WSStartSSHResponse struct {
+	ResponseHead
+	Result []bool `json:"result" validate:"dive"`
 }
 
 func listenerTemplate[M any](conn *wsocket.Connect, event string) func(m M) {
 	return func(m M) {
 		request := &WSNotificationRequest{
-			Id:     nil,
-			Method: "ssh.notification",
+			RequestHead: RequestHead{
+				Id:     nil,
+				Method: "ssh.notification",
+			},
 			Params: []struct {
 				Event   string      `json:"event" validate:"required"`
 				Message interface{} `json:"message" validate:"required"`
@@ -125,23 +150,31 @@ func messageJsonParseHelper(id string, conn *wsocket.Connect, msg []byte, v inte
 		errText := fmt.Sprintf("Json parse fail : %v", err)
 		log.Printf(errText)
 		wsResponse := &WSResponse{
-			Id:     id,
+			ResponseHead: ResponseHead{
+				Id: id,
+				Error: &ResponseError{
+					Code:    400,
+					Message: errText,
+				},
+			},
 			Result: nil,
-			Error:  &errText,
 		}
-		wsResponseBytes, err := json.Marshal(wsResponse)
-		if err != nil {
-			log.Printf("Json parse fail : %v", err)
+		if wsResponseBytes, ok := messageJsonStringifyHelper(wsResponse); ok {
+			conn.WriteMessage(wsResponseBytes)
 		}
-		conn.WriteMessage(wsResponseBytes)
 		return false
 	} else if err := valid.Struct(v); err != nil {
 		errText := fmt.Sprintf("message validate fail : %v", err)
 		log.Printf(errText)
 		wsResponse := &WSResponse{
-			Id:     id,
+			ResponseHead: ResponseHead{
+				Id: id,
+				Error: &ResponseError{
+					Code:    400,
+					Message: errText,
+				},
+			},
 			Result: nil,
-			Error:  &errText,
 		}
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
@@ -177,7 +210,7 @@ func messageRouter(conn *wsocket.Connect, msg []byte) {
 	}
 }
 
-func handleRequest(conn *wsocket.Connect, msg []byte) {
+func handleRequestCommon(msg []byte, conn *wsocket.Connect) (id, method string, ok bool) {
 	wsRequest := &WSRequest{}
 	err := json.Unmarshal(msg, wsRequest)
 	if err != nil {
@@ -190,28 +223,43 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 		idRegResults := idReg.FindAllSubmatch(msg, -1)
 		if idRegResults == nil {
 			log.Printf("parse id fail")
-			return
+			return "", "", false
 		}
 		wsResponse := &WSResponse{
-			Id:     string(idRegResults[0][1]),
+			ResponseHead: ResponseHead{
+				Id: string(idRegResults[0][1]),
+				Error: &ResponseError{
+					Code:    400,
+					Message: errText,
+				},
+			},
 			Result: nil,
-			Error:  &errText,
 		}
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
 		}
+		return "", "", false
+	}
+	return *wsRequest.Id, wsRequest.Method, true
+}
+
+func handleRequest(conn *wsocket.Connect, msg []byte) {
+	id, method, ok := handleRequestCommon(msg, conn)
+	if !ok {
 		return
 	}
-	switch wsRequest.Method {
+	switch method {
 	case "ssh.startMonitor":
 		log.Printf("%s handle ssh.startMonitior", conn.Key)
 		wsMonitorSSHRequest := &WSMonitorSSHRequest{}
-		if ok := messageJsonParseHelper(*wsRequest.Id, conn, msg, wsMonitorSSHRequest); !ok {
+		if ok := messageJsonParseHelper(id, conn, msg, wsMonitorSSHRequest); !ok {
 			return
 		}
 		wsMonitorSSHResponse := &WSMonitorSSHResponse{
-			Id:     *wsMonitorSSHRequest.Id,
-			Error:  nil,
+			ResponseHead: ResponseHead{
+				Id:    *wsMonitorSSHRequest.Id,
+				Error: nil,
+			},
 			Result: make([]WSMonitorSSHResponseResult, 0),
 		}
 		for _, p := range wsMonitorSSHRequest.Params {
@@ -227,7 +275,10 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 			} else {
 				errText := err.Error()
 				result.Monitor = false
-				result.Error = &errText
+				result.Error = &ResponseError{
+					Code:    400,
+					Message: errText,
+				}
 			}
 			wsMonitorSSHResponse.Result = append(wsMonitorSSHResponse.Result, result)
 		}
@@ -235,14 +286,15 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 			conn.WriteMessage(wsResponseBytes)
 		}
 	case "ssh.stopMonitor":
-
 		wsUnMonitorSSHRequest := &WSUnMonitorSSHRequest{}
-		if ok := messageJsonParseHelper(*wsRequest.Id, conn, msg, wsUnMonitorSSHRequest); !ok {
+		if ok := messageJsonParseHelper(id, conn, msg, wsUnMonitorSSHRequest); !ok {
 			return
 		}
 		wsUnMonitorSSHResponse := &WSUnMonitorSSHResponse{
-			Id:     *wsUnMonitorSSHRequest.Id,
-			Error:  nil,
+			ResponseHead: ResponseHead{
+				Id:    *wsUnMonitorSSHRequest.Id,
+				Error: nil,
+			},
 			Result: make([]WSUnMonitorSSHResponseResult, 0),
 		}
 		for _, p := range wsUnMonitorSSHRequest.Params {

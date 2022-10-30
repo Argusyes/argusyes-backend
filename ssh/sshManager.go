@@ -2,6 +2,9 @@ package ssh
 
 import (
 	"fmt"
+	"github.com/gorilla/websocket"
+	"golang.org/x/crypto/ssh"
+	"io"
 	"log"
 	"sync"
 )
@@ -80,4 +83,95 @@ func (m *Manager) RemoveSSHListener(port int, host, user, wsKey string) {
 		m.deleteSSH(v.Key)
 		log.Printf("ssh client delete %s", v.Key)
 	}
+}
+
+type myWriter struct {
+	conn *websocket.Conn
+	m    *sync.Mutex
+}
+
+func (w myWriter) Write(p []byte) (int, error) {
+	w.m.Lock()
+	err := w.conn.WriteMessage(websocket.TextMessage, p)
+	w.m.Unlock()
+	if err != nil {
+		return 0, io.EOF
+	}
+	return len(p), nil
+}
+
+type myReader struct {
+	conn  *websocket.Conn
+	clean func()
+}
+
+func (w myReader) Read(p []byte) (int, error) {
+	_, data, err := w.conn.ReadMessage()
+	if err != nil {
+		w.clean()
+		return -1, io.EOF
+	}
+	for i, b := range data {
+		p[i] = b
+	}
+	return len(data), nil
+}
+
+func (m *Manager) NewSSHClientWithConn(port int, host string, user string, passwd string, conn *websocket.Conn, mutex *sync.Mutex) (bool, error) {
+	c, err := newSimpleSSH(port, host, user, passwd)
+	if err != nil {
+		log.Printf("new client fail : %v", err)
+		return false, err
+	}
+
+	session, err := c.NewSession()
+	if err != nil {
+		log.Printf("new session fail : %v", err)
+		return false, err
+	}
+
+	session.Stdout = myWriter{conn: conn, m: mutex}
+	session.Stderr = myWriter{conn: conn, m: mutex}
+	session.Stdin = myReader{conn: conn, clean: func() {
+		err := session.Signal(ssh.SIGHUP)
+		if err != nil {
+			log.Printf("signal error: %s", err.Error())
+		}
+	}}
+
+	//设置终端模式
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          0,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+
+	// 请求伪终端
+	if err = session.RequestPty("linux", 32, 160, modes); err != nil {
+		log.Printf("request pty error: %s", err.Error())
+		return false, err
+	}
+
+	//启动远程shell
+	if err = session.Shell(); err != nil {
+		log.Printf("start shell error: %s", err.Error())
+		return false, err
+	}
+	go func() {
+		//等待远程命令（终端）退出
+		if err := session.Wait(); err != nil {
+			log.Printf("return error: %s", err.Error())
+		}
+		if err := session.Close(); err != nil {
+			log.Printf("close error: %s", err.Error())
+		}
+		if err := c.Close(); err != nil {
+			log.Printf("close error: %s", err.Error())
+		}
+		if err := conn.Close(); err != nil {
+			log.Printf("close error: %s", err.Error())
+		}
+	}()
+
+	return true, nil
 }

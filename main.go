@@ -42,6 +42,7 @@ func main() {
 	router.Use(ginAllowOriginMiddleware(allowOrigin))
 	router.Use(ginAuthMiddleware())
 	router.GET("/monitor", monitorHandler)
+	router.GET("/ssh", sshHandler)
 	router.POST("/user/addSSH", addUserSSHHandler)
 	router.DELETE("/user/deleteSSH", deleteUserSSHHandler)
 	router.PUT("/user/updateSSH", updateUserSSHHandler)
@@ -65,6 +66,10 @@ func main() {
 
 func monitorHandler(c *gin.Context) {
 	wsocket.WsocketManager.HandleNewConnect(c.Writer, c.Request)
+}
+
+func sshHandler(c *gin.Context) {
+	handleNewSSHConnect(c.Writer, c.Request)
 }
 
 func ginAllowOriginMiddleware(allowOrigin string) gin.HandlerFunc {
@@ -128,6 +133,7 @@ func isInWhiteList(url *url.URL, method string) bool {
 		"/user/register": mapSet.NewSet("POST"),
 		"/user/login":    mapSet.NewSet("POST"),
 		"/monitor":       mapSet.NewSet("GET"),
+		"/ssh":           mapSet.NewSet("GET"),
 	}
 	queryUrl := strings.Split(fmt.Sprint(url), "?")[0]
 	if set, ok := whiteList[queryUrl]; ok {

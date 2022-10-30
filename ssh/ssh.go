@@ -128,8 +128,7 @@ type SSH struct {
 	diskClient              Client[DiskMessage]
 }
 
-func newSSH(port int, host, user, passwd string) (*SSH, error) {
-
+func newSimpleSSH(port int, host, user, passwd string) (*ssh.Client, error) {
 	config := &ssh.ClientConfig{
 		Timeout:         time.Second,
 		User:            user,
@@ -143,6 +142,15 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		errText := fmt.Sprintf("Create ssh client %s fail : %v", generalKey(port, host, user), err)
 		log.Printf(errText)
 		return nil, errors.New(errText)
+	}
+	return sshClient, nil
+}
+
+func newSSH(port int, host, user, passwd string) (*SSH, error) {
+
+	sshClient, err := newSimpleSSH(port, host, user, passwd)
+	if err != nil {
+		return nil, err
 	}
 	sftpClient, err := sftp.NewClient(sshClient)
 	if err != nil {
