@@ -1,9 +1,14 @@
 package ssh
 
 import (
+	"encoding/binary"
 	"fmt"
+	mapSet "github.com/deckarep/golang-set/v2"
+	"github.com/pkg/sftp"
+	"io/ioutil"
 	"log"
 	"math"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -81,10 +86,10 @@ func (p *Parser) parseCPUInfoMessage(c MonitorContext) *CPUInfoMessage {
 						continue
 					}
 					cpuInfo.CPUCores = parseInt
-				} else if strings.HasPrefix(line, "fpu") {
-					cpuInfo.FPU = strings.TrimSpace(strings.Split(line, ":")[1]) == "yes"
 				} else if strings.HasPrefix(line, "fpu_exception") {
 					cpuInfo.FPUException = strings.TrimSpace(strings.Split(line, ":")[1]) == "yes"
+				} else if strings.HasPrefix(line, "fpu") {
+					cpuInfo.FPU = strings.TrimSpace(strings.Split(line, ":")[1]) == "yes"
 				} else if strings.HasPrefix(line, "bogomips") {
 					temp := strings.TrimSpace(strings.Split(line, ":")[1])
 					parseFloat, err := strconv.ParseFloat(temp, 64)
@@ -387,7 +392,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerforma
 	if !ok {
 		return nil
 	}
-	m.Memory.TotalMem = roundMem(TotalMem)
+	m.Memory.TotalMem = roundMem(TotalMem * 1024)
 
 	SwapTotalReg := regexp.MustCompile(`SwapTotal:\D+(\d+) kB\n`)
 	if SwapTotalReg == nil {
@@ -402,7 +407,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerforma
 	if !ok {
 		return nil
 	}
-	m.Memory.SwapTotal = roundMem(SwapTotal)
+	m.Memory.SwapTotal = roundMem(SwapTotal * 1024)
 
 	lines := strings.Split(c.newS, "\n")
 	for _, line := range lines {
@@ -416,49 +421,49 @@ func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerforma
 			if !ok {
 				return nil
 			}
-			m.Memory.FreeMem = roundMem(t)
+			m.Memory.FreeMem = roundMem(t * 1024)
 			m.Memory.FreeMemOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "MemAvailable:") {
 			t, ok := parseInt64(number)
 			if !ok {
 				return nil
 			}
-			m.Memory.AvailableMem = roundMem(t)
+			m.Memory.AvailableMem = roundMem(t * 1024)
 			m.Memory.AvailableMemOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "Buffers:") {
 			t, ok := parseInt64(number)
 			if !ok {
 				return nil
 			}
-			m.Memory.Buffer = roundMem(t)
+			m.Memory.Buffer = roundMem(t * 1024)
 			m.Memory.BufferOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "Cached:") {
 			t, ok := parseInt64(number)
 			if !ok {
 				return nil
 			}
-			m.Memory.Cached = roundMem(t)
+			m.Memory.Cached = roundMem(t * 1024)
 			m.Memory.CacheOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "Dirty:") {
 			t, ok := parseInt64(number)
 			if !ok {
 				return nil
 			}
-			m.Memory.Dirty = roundMem(t)
+			m.Memory.Dirty = roundMem(t * 1024)
 			m.Memory.DirtyOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "SwapCached:") {
 			t, ok := parseInt64(number)
 			if !ok {
 				return nil
 			}
-			m.Memory.SwapCached = roundMem(t)
+			m.Memory.SwapCached = roundMem(t * 1024)
 			m.Memory.SwapCachedOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "SwapFree:") {
 			t, ok := parseInt64(number)
 			if !ok {
 				return nil
 			}
-			m.Memory.SwapFree = roundMem(t)
+			m.Memory.SwapFree = roundMem(t * 1024)
 			m.Memory.SwapFreeOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		}
 	}
@@ -531,19 +536,187 @@ func (p *Parser) parseLoadavgMessage(c MonitorContext) *LoadavgMessage {
 }
 
 func (p *Parser) parseNetDevMessage(c MonitorContext) *NetDevMessage {
+	if c.oldS == "" {
+		return nil
+	}
 	m := &NetDevMessage{
 		Message: Message{
 			Port: c.port,
 			Host: c.host,
 			User: c.user,
 		},
+		NetDevTotal: NetDevTotal{},
+		NetDevMap:   make(map[string]NetDev, 0),
 	}
 
+	reg := regexp.MustCompile(`([^:\n]+):\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\n`)
+	if reg == nil {
+		log.Fatalf("regexp parse fail : Net Dev")
+	}
+	oldResult := reg.FindAllStringSubmatch(c.oldS, -1)
+	newResult := reg.FindAllStringSubmatch(c.newS, -1)
+	if oldResult == nil || newResult == nil {
+		log.Printf("parse Net Dev fail")
+		return nil
+	}
+	oldMap := make(map[string][]string, 0)
+	for _, ss := range oldResult {
+		oldMap[strings.TrimSpace(ss[1])] = ss
+	}
+	// route info
+	route, ok := readFile("/proc/net/route", c.client)
+	if !ok {
+		return nil
+	}
+	fib, ok := readFile("/proc/net/fib_trie", c.client)
+	if !ok {
+		return nil
+	}
+
+	routeMap := make(map[string]mapSet.Set[string], 0)
+
+	for i, line := range strings.Split(route, "\n") {
+		if i == 0 || line == "" {
+			continue
+		}
+		lineSplit := strings.Split(line, "\t")
+		gw, ok := parseInt64Base16(lineSplit[2])
+		if !ok {
+			continue
+		}
+		if gw != 0 {
+			continue
+		}
+		// 取出所有网关为0的
+		name := lineSplit[0]
+		ipBigEnd, ok := parseInt64Base16(lineSplit[1])
+		if !ok {
+			continue
+		}
+		var ipPreBytes = make([]byte, 4)
+		binary.LittleEndian.PutUint32(ipPreBytes, uint32(ipBigEnd))
+		ipPre := fmt.Sprintf("%d.%d.%d.%d", ipPreBytes[0], ipPreBytes[1], ipPreBytes[2], ipPreBytes[3])
+
+		if set, ok := routeMap[name]; ok {
+			set.Add(ipPre)
+		} else {
+			set = mapSet.NewSet(ipPre)
+			routeMap[name] = set
+		}
+	}
+
+	EndIPReg := regexp.MustCompile(`.* (\d+\.\d+\.\d+\.\d+)$`)
+	if EndIPReg == nil {
+		log.Fatalf("regexp parse fail : EndIP")
+		return nil
+	}
+
+	// 网卡IP
+	fibMap := make(map[string]mapSet.Set[string], 0)
+	for key, val := range routeMap {
+		fibSet := mapSet.NewSet[string]()
+		fibMap[key] = fibSet
+		it := val.Iterator()
+		for ipPre := range it.C {
+			// 去除本地
+			if strings.HasPrefix(ipPre, "169.254") {
+				continue
+			}
+			FibReg := regexp.MustCompile(ipPre + `([^L]*)\n\s+/32 host LOCAL\n`)
+			if FibReg == nil {
+				continue
+			}
+			FibResult := FibReg.FindAllStringSubmatch(fib, -1)
+			if FibResult == nil {
+				continue
+			}
+			EndIPResult := EndIPReg.FindAllStringSubmatch(FibResult[0][1], -1)
+			if EndIPResult == nil {
+				continue
+			}
+			fibSet.Add(EndIPResult[0][1])
+		}
+	}
+
+	oldTotalUpBytes := int64(0)
+	oldTotalDownBytes := int64(0)
+	difTime := c.newTime.Sub(c.oldTime).Milliseconds()
+	for _, ss := range newResult {
+		name := strings.TrimSpace(ss[1])
+		oldSS, ok := oldMap[name]
+		if !ok {
+			continue
+		}
+		n := NetDev{
+			Name: name,
+			IP:   make([]string, 0),
+		}
+		ipSet, ok := fibMap[name]
+		if ok {
+			it := ipSet.Iterator()
+			for s := range it.C {
+				n.IP = append(n.IP, s)
+			}
+		}
+		// 判断虚拟化
+		n.Virtual = true
+		_, err := c.client.Stat("/sys/devices/virtual/net/" + name)
+		if err != nil {
+			n.Virtual = false
+		}
+		if n.DownBytes, ok = parseInt64(ss[2]); !ok {
+			continue
+		}
+		if n.DownPackets, ok = parseInt64(ss[3]); !ok {
+			continue
+		}
+		if n.UpBytes, ok = parseInt64(ss[10]); !ok {
+			continue
+		}
+		if n.UpPackets, ok = parseInt64(ss[11]); !ok {
+			continue
+		}
+		n.UpBytesStr = roundMem(n.UpBytes)
+		n.DownBytesStr = roundMem(n.DownBytes)
+		oldUpBytes, ok := parseInt64(oldSS[10])
+		if !ok {
+			continue
+		}
+		oldDownBytes, ok := parseInt64(oldSS[2])
+		if !ok {
+			continue
+		}
+		n.UpSpeed = fmt.Sprintf("%s/s", roundMem((n.UpBytes-oldUpBytes)*1000/difTime))
+		n.DownSpeed = fmt.Sprintf("%s/s", roundMem((n.DownBytes-oldDownBytes)*1000/difTime))
+
+		if !n.Virtual {
+			m.NetDevTotal.UpBytes += n.UpBytes
+			m.NetDevTotal.DownBytes += n.DownBytes
+			m.NetDevTotal.UpPackets += n.UpPackets
+			m.NetDevTotal.DownPackets += n.DownPackets
+			oldTotalDownBytes += oldDownBytes
+			oldTotalUpBytes += oldUpBytes
+		}
+		m.NetDevMap[name] = n
+	}
+	m.NetDevTotal.UpBytesStr = roundMem(m.NetDevTotal.UpBytes)
+	m.NetDevTotal.DownBytesStr = roundMem(m.NetDevTotal.DownBytes)
+	m.NetDevTotal.UpSpeed = fmt.Sprintf("%s/s", roundMem((m.NetDevTotal.UpBytes-oldTotalUpBytes)*1000/difTime))
+	m.NetDevTotal.DownSpeed = fmt.Sprintf("%s/s", roundMem((m.NetDevTotal.DownBytes-oldTotalDownBytes)*1000/difTime))
 	return m
 }
 
 func parseInt64(s string) (int64, bool) {
 	parseInt, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		log.Printf("parse int fail %s : %v", s, err)
+		return 0, false
+	}
+	return parseInt, true
+}
+
+func parseInt64Base16(s string) (int64, bool) {
+	parseInt, err := strconv.ParseInt(s, 16, 64)
 	if err != nil {
 		log.Printf("parse int fail %s : %v", s, err)
 		return 0, false
@@ -560,13 +733,15 @@ func parseFloat64(s string) (float64, bool) {
 	return parseFloat, true
 }
 
-func roundMem(kb int64) string {
-	if kb > 1024*1024 {
-		return fmt.Sprintf("%.2fGB", float64(kb)/1024/1024)
-	} else if kb > 1024 {
-		return fmt.Sprintf("%.2fMB", float64(kb)/1024)
+func roundMem(b int64) string {
+	if b > 1024*1024*1024 {
+		return fmt.Sprintf("%.2fGB", float64(b)/1024/1024/1024)
+	} else if b > 1024*1024 {
+		return fmt.Sprintf("%.2fMB", float64(b)/1024/1024)
+	} else if b > 1024 {
+		return fmt.Sprintf("%dKB", b/1024)
 	} else {
-		return fmt.Sprintf("%dKB", kb)
+		return fmt.Sprintf("%dB", b)
 	}
 }
 
@@ -574,4 +749,22 @@ func roundFloat(num float64, n int) float64 {
 	s := "%." + fmt.Sprintf("%d", n) + "f"
 	value, _ := strconv.ParseFloat(fmt.Sprintf(s, num), 64)
 	return value
+}
+
+func readFile(where string, client *sftp.Client) (string, bool) {
+	srcFile, err := client.OpenFile(where, os.O_RDONLY)
+	if err != nil {
+		log.Printf("Read %s file fail : %v", where, err)
+		return "", false
+	}
+	f, err := ioutil.ReadAll(srcFile)
+	if err != nil {
+		log.Printf("Read %s file fail : %v", where, err)
+		return "", false
+	}
+	err = srcFile.Close()
+	if err != nil {
+		log.Printf("Close %s file fail : %v", where, err)
+	}
+	return string(f), true
 }

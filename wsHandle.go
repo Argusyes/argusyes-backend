@@ -112,6 +112,7 @@ func getSSHListener(conn *wsocket.Connect) ssh.AllListener {
 		MemoryPerformanceListener: listenerTemplate[ssh.MemoryPerformanceMessage](conn, "memoryPerformance"),
 		UptimeListener:            listenerTemplate[ssh.UptimeMessage](conn, "uptime"),
 		LoadavgListener:           listenerTemplate[ssh.LoadavgMessage](conn, "loadavg"),
+		NetDevListener:            listenerTemplate[ssh.NetDevMessage](conn, "netDev"),
 	}
 }
 

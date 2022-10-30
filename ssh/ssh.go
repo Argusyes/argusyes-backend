@@ -59,7 +59,7 @@ func (c *Client[M]) RemoveHandler(key string) {
 func (c *Client[M]) monitor(h *SSH, f func(context MonitorContext) *M, second int) {
 	oldS := ""
 	oldTime := time.Now()
-	for {
+	for ; ; time.Sleep(time.Duration(second) * time.Second) {
 		select {
 		case s, ok := <-h.stop:
 			if !ok {
@@ -72,8 +72,13 @@ func (c *Client[M]) monitor(h *SSH, f func(context MonitorContext) *M, second in
 			srcFile, err := h.sftpClient.OpenFile(c.where, os.O_RDONLY)
 			if err != nil {
 				log.Printf("Read %s file fail : %v", c.where, err)
+				continue
 			}
 			newS, err := ioutil.ReadAll(srcFile)
+			if err != nil {
+				log.Printf("Read %s file fail : %v", c.where, err)
+				continue
+			}
 			newTime := time.Now()
 			err = srcFile.Close()
 			if err != nil {
@@ -95,7 +100,6 @@ func (c *Client[M]) monitor(h *SSH, f func(context MonitorContext) *M, second in
 			oldS = string(newS)
 			oldTime = newTime
 		}
-		time.Sleep(time.Duration(second) * time.Second)
 	}
 }
 

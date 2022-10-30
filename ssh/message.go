@@ -157,9 +157,31 @@ type Loadavg struct {
 
 type NetDevMessage struct {
 	Message
-	NetDevMap map[string]NetDev `json:"netDev"`
+	NetDevTotal NetDevTotal       `json:"netDevTotal"`
+	NetDevMap   map[string]NetDev `json:"netDev"`
+}
+
+type NetDevTotal struct {
+	UpBytesStr   string `json:"UpBytesStr"`
+	UpBytes      int64  `json:"UpBytes"`
+	DownBytesStr string `json:"DownBytesStr"`
+	DownBytes    int64  `json:"DownBytes"`
+	UpPackets    int64  `json:"UpPackets"`
+	DownPackets  int64  `json:"DownPackets"`
+	UpSpeed      string `json:"UpSpeed"`
+	DownSpeed    string `json:"DownSpeed"`
 }
 
 type NetDev struct {
-	Name string `json:"name"`
+	Name         string   `json:"name"`
+	IP           []string `json:"IP"`
+	Virtual      bool     `json:"Virtual"`
+	UpBytesStr   string   `json:"UpBytesStr"`
+	UpBytes      int64    `json:"UpBytes"`
+	DownBytesStr string   `json:"DownBytesStr"`
+	DownBytes    int64    `json:"DownBytes"`
+	UpPackets    int64    `json:"UpPackets"`
+	DownPackets  int64    `json:"DownPackets"`
+	UpSpeed      string   `json:"UpSpeed"`
+	DownSpeed    string   `json:"DownSpeed"`
 }
