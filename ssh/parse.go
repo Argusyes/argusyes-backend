@@ -33,16 +33,24 @@ type Parser struct {
 		SwapFreeOccupy     float64
 	}
 	Net struct {
-		UpBytesStr   string
-		DownBytesStr string
-		UpSpeed      string
-		DownSpeed    string
+		UpBytesH       float64
+		UpBytesHUnit   string
+		DownBytesH     float64
+		DownBytesHUnit string
+		UpSpeed        float64
+		UpSpeedUnit    string
+		DownSpeed      float64
+		DownSpeedUnit  string
 	}
 	Disk struct {
-		Write     string
-		Read      string
-		WriteRate string
-		ReadRate  string
+		Write         float64
+		WriteUnit     string
+		Read          float64
+		ReadUnit      string
+		WriteRate     float64
+		WriteRateUnit string
+		ReadRate      float64
+		ReadRateUnit  string
 	}
 }
 
@@ -70,16 +78,24 @@ func (p *Parser) parseRoughMessage(port int, host, user string) *RoughMessage {
 			SwapFreeOccupy:     p.Memory.SwapFreeOccupy,
 		},
 		Net: RoughNet{
-			UpSpeed:      p.Net.UpSpeed,
-			DownSpeed:    p.Net.DownSpeed,
-			UpBytesStr:   p.Net.UpBytesStr,
-			DownBytesStr: p.Net.DownBytesStr,
+			UpBytesH:       p.Net.UpBytesH,
+			UpBytesHUnit:   p.Net.UpBytesHUnit,
+			DownBytesH:     p.Net.DownBytesH,
+			DownBytesHUnit: p.Net.DownBytesHUnit,
+			UpSpeed:        p.Net.UpSpeed,
+			UpSpeedUnit:    p.Net.UpSpeedUnit,
+			DownSpeed:      p.Net.DownSpeed,
+			DownSpeedUnit:  p.Net.DownSpeedUnit,
 		},
 		Disk: RoughDisk{
-			Write:     p.Disk.Write,
-			WriteRate: p.Disk.WriteRate,
-			Read:      p.Disk.Read,
-			ReadRate:  p.Disk.ReadRate,
+			Write:         p.Disk.Write,
+			WriteUnit:     p.Disk.WriteUnit,
+			Read:          p.Disk.Read,
+			ReadUnit:      p.Disk.ReadUnit,
+			WriteRate:     p.Disk.WriteRate,
+			WriteRateUnit: p.Disk.WriteRateUnit,
+			ReadRate:      p.Disk.ReadRate,
+			ReadRateUnit:  p.Disk.ReadRateUnit,
 		},
 	}
 	return m
@@ -294,13 +310,17 @@ func (p *Parser) parseCPUPerformanceMessage(c MonitorContext) *CPUPerformanceMes
 	totalCPUTime := newTotalCPUTime * jiffies
 	coreNum := int64(len(newResult) - 1)
 	if totalCPUTime > coreNum*1000*60*60*24 {
-		m.Total.TotalTime = fmt.Sprintf("%dD", totalCPUTime/coreNum/1000/60/60/24)
+		m.Total.TotalTime = totalCPUTime / coreNum / 1000 / 60 / 60 / 24
+		m.Total.TotalTimeUnit = "D"
 	} else if totalCPUTime > coreNum*1000*60*60 {
-		m.Total.TotalTime = fmt.Sprintf("%dH", totalCPUTime/coreNum/1000/60/60)
+		m.Total.TotalTime = totalCPUTime / coreNum / 1000 / 60 / 60
+		m.Total.TotalTimeUnit = "H"
 	} else if totalCPUTime > coreNum*1000*60 {
-		m.Total.TotalTime = fmt.Sprintf("%dMin", totalCPUTime/coreNum/1000/60)
+		m.Total.TotalTime = totalCPUTime / coreNum / 1000 / 60
+		m.Total.TotalTimeUnit = "M"
 	} else {
-		m.Total.TotalTime = fmt.Sprintf("%dS", totalCPUTime/coreNum/1000)
+		m.Total.TotalTime = totalCPUTime / coreNum / 1000
+		m.Total.TotalTimeUnit = "S"
 	}
 
 	// 利用率
@@ -461,7 +481,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerforma
 	if !ok {
 		return nil
 	}
-	m.Memory.TotalMem = roundMem(TotalMem * 1024)
+	m.Memory.TotalMem, m.Memory.TotalMemUnit = roundMem(TotalMem * 1024)
 
 	SwapTotalReg := regexp.MustCompile(`SwapTotal:\D+(\d+) kB\n`)
 	if SwapTotalReg == nil {
@@ -476,7 +496,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerforma
 	if !ok {
 		return nil
 	}
-	m.Memory.SwapTotal = roundMem(SwapTotal * 1024)
+	m.Memory.SwapTotal, m.Memory.SwapTotalUnit = roundMem(SwapTotal * 1024)
 
 	lines := strings.Split(c.newS, "\n")
 	for _, line := range lines {
@@ -490,7 +510,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerforma
 			if !ok {
 				return nil
 			}
-			m.Memory.FreeMem = roundMem(t * 1024)
+			m.Memory.FreeMem, m.Memory.FreeMemUnit = roundMem(t * 1024)
 			m.Memory.FreeMemOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 			p.Memory.FreeMemOccupy = m.Memory.FreeMemOccupy
 		} else if strings.HasPrefix(line, "MemAvailable:") {
@@ -498,7 +518,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerforma
 			if !ok {
 				return nil
 			}
-			m.Memory.AvailableMem = roundMem(t * 1024)
+			m.Memory.AvailableMem, m.Memory.AvailableMemUnit = roundMem(t * 1024)
 			m.Memory.AvailableMemOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 			p.Memory.AvailableMemOccupy = m.Memory.AvailableMemOccupy
 		} else if strings.HasPrefix(line, "Buffers:") {
@@ -506,35 +526,35 @@ func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerforma
 			if !ok {
 				return nil
 			}
-			m.Memory.Buffer = roundMem(t * 1024)
+			m.Memory.Buffer, m.Memory.BufferUnit = roundMem(t * 1024)
 			m.Memory.BufferOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "Cached:") {
 			t, ok := parseInt64(number)
 			if !ok {
 				return nil
 			}
-			m.Memory.Cached = roundMem(t * 1024)
+			m.Memory.Cached, m.Memory.CachedUnit = roundMem(t * 1024)
 			m.Memory.CacheOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "Dirty:") {
 			t, ok := parseInt64(number)
 			if !ok {
 				return nil
 			}
-			m.Memory.Dirty = roundMem(t * 1024)
+			m.Memory.Dirty, m.Memory.DirtyUnit = roundMem(t * 1024)
 			m.Memory.DirtyOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "SwapCached:") {
 			t, ok := parseInt64(number)
 			if !ok {
 				return nil
 			}
-			m.Memory.SwapCached = roundMem(t * 1024)
+			m.Memory.SwapCached, m.Memory.SwapCachedUnit = roundMem(t * 1024)
 			m.Memory.SwapCachedOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 		} else if strings.HasPrefix(line, "SwapFree:") {
 			t, ok := parseInt64(number)
 			if !ok {
 				return nil
 			}
-			m.Memory.SwapFree = roundMem(t * 1024)
+			m.Memory.SwapFree, m.Memory.SwapFreeUnit = roundMem(t * 1024)
 			m.Memory.SwapFreeOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 			p.Memory.SwapFreeOccupy = m.Memory.SwapFreeOccupy
 		}
@@ -751,8 +771,8 @@ func (p *Parser) parseNetDevMessage(c MonitorContext) *NetDevMessage {
 		if n.UpPackets, ok = parseInt64(ss[11]); !ok {
 			continue
 		}
-		n.UpBytesStr = roundMem(n.UpBytes)
-		n.DownBytesStr = roundMem(n.DownBytes)
+		n.UpBytesH, n.UpBytesHUnit = roundMem(n.UpBytes)
+		n.DownBytesH, n.DownBytesHUnit = roundMem(n.DownBytes)
 		oldUpBytes, ok := parseInt64(oldSS[10])
 		if !ok {
 			continue
@@ -761,8 +781,8 @@ func (p *Parser) parseNetDevMessage(c MonitorContext) *NetDevMessage {
 		if !ok {
 			continue
 		}
-		n.UpSpeed = fmt.Sprintf("%s/s", roundMem((n.UpBytes-oldUpBytes)*1000/difTime))
-		n.DownSpeed = fmt.Sprintf("%s/s", roundMem((n.DownBytes-oldDownBytes)*1000/difTime))
+		n.UpSpeed, n.UpSpeedUnit = roundSpeed((n.UpBytes - oldUpBytes) * 1000 / difTime)
+		n.DownSpeed, n.DownSpeedUnit = roundSpeed((n.DownBytes - oldDownBytes) * 1000 / difTime)
 
 		if !n.Virtual {
 			m.NetDevTotal.UpBytes += n.UpBytes
@@ -774,14 +794,14 @@ func (p *Parser) parseNetDevMessage(c MonitorContext) *NetDevMessage {
 		}
 		m.NetDevMap[name] = n
 	}
-	m.NetDevTotal.UpBytesStr = roundMem(m.NetDevTotal.UpBytes)
-	m.NetDevTotal.DownBytesStr = roundMem(m.NetDevTotal.DownBytes)
-	m.NetDevTotal.UpSpeed = fmt.Sprintf("%s/s", roundMem((m.NetDevTotal.UpBytes-oldTotalUpBytes)*1000/difTime))
-	m.NetDevTotal.DownSpeed = fmt.Sprintf("%s/s", roundMem((m.NetDevTotal.DownBytes-oldTotalDownBytes)*1000/difTime))
-	p.Net.UpSpeed = m.NetDevTotal.UpSpeed
-	p.Net.DownSpeed = m.NetDevTotal.DownSpeed
-	p.Net.UpBytesStr = m.NetDevTotal.UpBytesStr
-	p.Net.DownBytesStr = m.NetDevTotal.DownBytesStr
+	m.NetDevTotal.UpBytesH, m.NetDevTotal.UpBytesHUnit = roundMem(m.NetDevTotal.UpBytes)
+	m.NetDevTotal.DownBytesH, m.NetDevTotal.DownBytesHUnit = roundMem(m.NetDevTotal.DownBytes)
+	m.NetDevTotal.UpSpeed, m.NetDevTotal.UpSpeedUnit = roundSpeed((m.NetDevTotal.UpBytes - oldTotalUpBytes) * 1000 / difTime)
+	m.NetDevTotal.DownSpeed, m.NetDevTotal.DownSpeedUnit = roundSpeed((m.NetDevTotal.DownBytes - oldTotalDownBytes) * 1000 / difTime)
+	p.Net.UpSpeed, p.Net.UpSpeedUnit = m.NetDevTotal.UpSpeed, m.NetDevTotal.UpSpeedUnit
+	p.Net.DownSpeed, p.Net.DownSpeedUnit = m.NetDevTotal.DownSpeed, m.NetDevTotal.DownSpeedUnit
+	p.Net.UpBytesH, p.Net.UpBytesHUnit = m.NetDevTotal.UpBytesH, m.NetDevTotal.UpBytesHUnit
+	p.Net.DownBytesH, p.Net.DownBytesHUnit = m.NetDevTotal.DownBytesH, m.NetDevTotal.DownBytesHUnit
 
 	return m
 }
@@ -980,8 +1000,8 @@ func (p *Parser) parseDiskMessage(c MonitorContext) *DiskMessage {
 
 		total := int64(stat.Blocks * stat.Bsize)
 		free := int64(stat.Bfree * stat.Bsize)
-		d.Free = roundMem(free)
-		d.Total = roundMem(total)
+		d.Free, d.FreeUnit = roundMem(free)
+		d.Total, d.TotalUnit = roundMem(total)
 		d.FreeRate = roundFloat(float64(free)/float64(total), 2)
 
 		oldWriteSector, ok := parseInt64(oldSS[10])
@@ -994,8 +1014,8 @@ func (p *Parser) parseDiskMessage(c MonitorContext) *DiskMessage {
 			continue
 		}
 		newWrite := SectorSize * newWriteSector
-		d.Write = roundMem(newWrite)
-		d.WriteRate = fmt.Sprintf("%s/s", roundMem((newWrite-oldWrite)*1000/diff))
+		d.Write, d.WriteUnit = roundMem(newWrite)
+		d.WriteRate, d.WriteRateUnit = roundSpeed((newWrite - oldWrite) * 1000 / diff)
 		oldReadSector, ok := parseInt64(oldSS[6])
 		if !ok {
 			continue
@@ -1006,8 +1026,8 @@ func (p *Parser) parseDiskMessage(c MonitorContext) *DiskMessage {
 			continue
 		}
 		newRead := SectorSize * newReadSector
-		d.Read = roundMem(newRead)
-		d.ReadRate = fmt.Sprintf("%s/s", roundMem((newRead-oldRead)*1000/diff))
+		d.Read, d.ReadUnit = roundMem(newRead)
+		d.ReadRate, d.ReadRateUnit = roundSpeed((newRead - oldRead) * 1000 / diff)
 
 		OldTotalWrite += oldWrite
 		OldTotalRead += oldRead
@@ -1035,14 +1055,14 @@ func (p *Parser) parseDiskMessage(c MonitorContext) *DiskMessage {
 
 		m.DiskMap[devName] = d
 	}
-	m.Write = roundMem(NewTotalWrite)
-	m.Read = roundMem(NewTotalRead)
-	m.WriteRate = fmt.Sprintf("%s/s", roundMem((NewTotalWrite-OldTotalWrite)*1000/diff))
-	m.ReadRate = fmt.Sprintf("%s/s", roundMem((NewTotalRead-OldTotalRead)*1000/diff))
-	p.Disk.Write = m.Write
-	p.Disk.Read = m.Read
-	p.Disk.WriteRate = m.WriteRate
-	p.Disk.ReadRate = m.ReadRate
+	m.Write, m.WriteUnit = roundMem(NewTotalWrite)
+	m.Read, m.ReadUnit = roundMem(NewTotalRead)
+	m.WriteRate, m.WriteRateUnit = roundSpeed((NewTotalWrite - OldTotalWrite) * 1000 / diff)
+	m.ReadRate, m.ReadRateUnit = roundSpeed((NewTotalRead - OldTotalRead) * 1000 / diff)
+	p.Disk.Write, p.Disk.WriteUnit = m.Write, m.WriteUnit
+	p.Disk.Read, p.Disk.ReadUnit = m.Read, m.ReadUnit
+	p.Disk.WriteRate, p.Disk.WriteRateUnit = m.WriteRate, m.WriteRateUnit
+	p.Disk.ReadRate, p.Disk.ReadRateUnit = m.ReadRate, m.ReadRateUnit
 	return m
 }
 
@@ -1073,15 +1093,20 @@ func parseFloat64(s string) (float64, bool) {
 	return parseFloat, true
 }
 
-func roundMem(b int64) string {
+func roundSpeed(b int64) (float64, string) {
+	speed, unit := roundMem(b)
+	return speed, unit + "/s"
+}
+
+func roundMem(b int64) (float64, string) {
 	if b > 1024*1024*1024 {
-		return fmt.Sprintf("%.2fGB", float64(b)/1024/1024/1024)
+		return roundFloat(float64(b)/1024/1024/1024, 2), "GB"
 	} else if b > 1024*1024 {
-		return fmt.Sprintf("%.2fMB", float64(b)/1024/1024)
+		return roundFloat(float64(b)/1024/1024, 2), "MB"
 	} else if b > 1024 {
-		return fmt.Sprintf("%dKB", b/1024)
+		return roundFloat(float64(b)/1024, 2), "KB"
 	} else {
-		return fmt.Sprintf("%dB", b)
+		return float64(b), "B"
 	}
 }
 

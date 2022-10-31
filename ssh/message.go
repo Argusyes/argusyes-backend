@@ -69,13 +69,14 @@ type CPUPerformanceMessage struct {
 }
 
 type CPUPerformanceTotal struct {
-	TotalTime   string  `json:"totalTime"`
-	Utilization float64 `json:"utilization"`
-	Free        float64 `json:"free"`
-	System      float64 `json:"system"`
-	User        float64 `json:"user"`
-	IO          float64 `json:"IO"`
-	Steal       float64 `json:"steal"`
+	TotalTime     int64   `json:"totalTime"`
+	TotalTimeUnit string  `json:"totalTimeUnit"`
+	Utilization   float64 `json:"utilization"`
+	Free          float64 `json:"free"`
+	System        float64 `json:"system"`
+	User          float64 `json:"user"`
+	IO            float64 `json:"IO"`
+	Steal         float64 `json:"steal"`
 }
 type CPUPerformance struct {
 	Processor   int64   `json:"processor"`
@@ -93,37 +94,46 @@ type MemoryPerformanceMessage struct {
 }
 
 type MemoryPerformance struct {
-	TotalMem string `json:"totalMem"`
+	TotalMem     float64 `json:"totalMem"`
+	TotalMemUnit string  `json:"totalMemUnit"`
 	// 未用占比
 	FreeMemOccupy float64 `json:"freeMemOccupy"`
 	// 未用
-	FreeMem string `json:"freeMem"`
+	FreeMem     float64 `json:"freeMem"`
+	FreeMemUnit string  `json:"freeMemUnit"`
 	// 可用占比
 	AvailableMemOccupy float64 `json:"availableMemOccupy"`
 	// 可用
-	AvailableMem string `json:"availableMem"`
+	AvailableMem     float64 `json:"availableMem"`
+	AvailableMemUnit string  `json:"availableMemUnit"`
 	// 块设备缓存占比
 	BufferOccupy float64 `json:"bufferOccupy"`
 	// 块设备缓存
-	Buffer string `json:"buffer"`
+	Buffer     float64 `json:"buffer"`
+	BufferUnit string  `json:"bufferUnit"`
 	// 普通文件缓存占比
 	CacheOccupy float64 `json:"cacheOccupy"`
 	// 普通文件缓存
-	Cached string `json:"cached"`
+	Cached     float64 `json:"cached"`
+	CachedUnit string  `json:"cachedUnit"`
 	// 脏页占比
 	DirtyOccupy float64 `json:"dirtyOccupy"`
 	// 脏页
-	Dirty string `json:"dirty"`
+	Dirty     float64 `json:"dirty"`
+	DirtyUnit string  `json:"dirtyUnit"`
 	// 交换总内存
-	SwapTotal string `json:"swapTotal"`
+	SwapTotal     float64 `json:"swapTotal"`
+	SwapTotalUnit string  `json:"swapTotalUnit"`
 	// 交换可用占比
 	SwapFreeOccupy float64 `json:"swapFreeOccupy"`
 	// 交换可用内存
-	SwapFree string `json:"swapFree"`
+	SwapFree     float64 `json:"swapFree"`
+	SwapFreeUnit string  `json:"swapFreeUnit"`
 	// 交换文件缓存占比
 	SwapCachedOccupy float64 `json:"swapCachedOccupy"`
 	// 交换文件缓存
-	SwapCached string `json:"swapCached"`
+	SwapCached     float64 `json:"swapCached"`
+	SwapCachedUnit string  `json:"swapCachedUnit"`
 }
 
 type UptimeMessage struct {
@@ -162,28 +172,36 @@ type NetDevMessage struct {
 }
 
 type NetDevTotal struct {
-	UpBytesStr   string `json:"upBytesStr"`
-	UpBytes      int64  `json:"upBytes"`
-	DownBytesStr string `json:"downBytesStr"`
-	DownBytes    int64  `json:"downBytes"`
-	UpPackets    int64  `json:"upPackets"`
-	DownPackets  int64  `json:"downPackets"`
-	UpSpeed      string `json:"upSpeed"`
-	DownSpeed    string `json:"downSpeed"`
+	UpBytesH       float64 `json:"upBytesH"`
+	UpBytesHUnit   string  `json:"upBytesHUnit"`
+	UpBytes        int64   `json:"upBytes"`
+	DownBytesH     float64 `json:"downBytesH"`
+	DownBytesHUnit string  `json:"downBytesHUnit"`
+	DownBytes      int64   `json:"downBytes"`
+	UpPackets      int64   `json:"upPackets"`
+	DownPackets    int64   `json:"downPackets"`
+	UpSpeed        float64 `json:"upSpeed"`
+	UpSpeedUnit    string  `json:"upSpeedUnit"`
+	DownSpeed      float64 `json:"downSpeed"`
+	DownSpeedUnit  string  `json:"downSpeedUnit"`
 }
 
 type NetDev struct {
-	Name         string   `json:"name"`
-	IP           []string `json:"ip"`
-	Virtual      bool     `json:"virtual"`
-	UpBytesStr   string   `json:"upBytesStr"`
-	UpBytes      int64    `json:"upBytes"`
-	DownBytesStr string   `json:"downBytesStr"`
-	DownBytes    int64    `json:"downBytes"`
-	UpPackets    int64    `json:"upPackets"`
-	DownPackets  int64    `json:"downPackets"`
-	UpSpeed      string   `json:"upSpeed"`
-	DownSpeed    string   `json:"downSpeed"`
+	Name           string   `json:"name"`
+	IP             []string `json:"ip"`
+	Virtual        bool     `json:"virtual"`
+	UpBytesH       float64  `json:"upBytesH"`
+	UpBytesHUnit   string   `json:"upBytesHUnit"`
+	UpBytes        int64    `json:"upBytes"`
+	DownBytesH     float64  `json:"downBytesH"`
+	DownBytesHUnit string   `json:"downBytesHUnit"`
+	DownBytes      int64    `json:"downBytes"`
+	UpPackets      int64    `json:"upPackets"`
+	DownPackets    int64    `json:"downPackets"`
+	UpSpeed        float64  `json:"upSpeed"`
+	UpSpeedUnit    string   `json:"upSpeedUnit"`
+	DownSpeed      float64  `json:"downSpeed"`
+	DownSpeedUnit  string   `json:"downSpeedUnit"`
 }
 
 type NetStatMessage struct {
@@ -216,26 +234,36 @@ type TempMessage struct {
 
 type DiskMessage struct {
 	Message
-	DiskMap   map[string]Disk `json:"diskMap"`
-	Write     string          `json:"write"`
-	Read      string          `json:"read"`
-	WriteRate string          `json:"writeRate"`
-	ReadRate  string          `json:"readRate"`
+	DiskMap       map[string]Disk `json:"diskMap"`
+	Write         float64         `json:"write"`
+	WriteUnit     string          `json:"writeUnit"`
+	Read          float64         `json:"read"`
+	ReadUnit      string          `json:"readUnit"`
+	WriteRate     float64         `json:"writeRate"`
+	WriteRateUnit string          `json:"writeRateUnit"`
+	ReadRate      float64         `json:"readRate"`
+	ReadRateUnit  string          `json:"readRateUnit"`
 }
 
 type Disk struct {
-	DevName    string  `json:"devName"`
-	Mount      string  `json:"mount"`
-	FileSystem string  `json:"fileSystem"`
-	Free       string  `json:"free"`
-	Total      string  `json:"total"`
-	FreeRate   float64 `json:"freeRate"`
-	Write      string  `json:"write"`
-	Read       string  `json:"read"`
-	WriteRate  string  `json:"writeRate"`
-	ReadRate   string  `json:"readRate"`
-	WriteIOPS  int64   `json:"writeIOPS"`
-	ReadIOPS   int64   `json:"readIOPS"`
+	DevName       string  `json:"devName"`
+	Mount         string  `json:"mount"`
+	FileSystem    string  `json:"fileSystem"`
+	Free          float64 `json:"free"`
+	FreeUnit      string  `json:"freeUnit"`
+	Total         float64 `json:"total"`
+	TotalUnit     string  `json:"totalUnit"`
+	FreeRate      float64 `json:"freeRate"`
+	Write         float64 `json:"write"`
+	WriteUnit     string  `json:"writeUnit"`
+	Read          float64 `json:"read"`
+	ReadUnit      string  `json:"readUnit"`
+	WriteRate     float64 `json:"writeRate"`
+	WriteRateUnit string  `json:"writeRateUnit"`
+	ReadRate      float64 `json:"readRate"`
+	ReadRateUnit  string  `json:"readRateUnit"`
+	WriteIOPS     int64   `json:"writeIOPS"`
+	ReadIOPS      int64   `json:"readIOPS"`
 }
 
 type RoughMessage struct {
@@ -269,15 +297,23 @@ type RoughMemory struct {
 }
 
 type RoughNet struct {
-	UpBytesStr   string `json:"upBytesStr"`
-	DownBytesStr string `json:"downBytesStr"`
-	UpSpeed      string `json:"upSpeed"`
-	DownSpeed    string `json:"downSpeed"`
+	UpBytesH       float64 `json:"upBytesH"`
+	UpBytesHUnit   string  `json:"upBytesHUnit"`
+	DownBytesH     float64 `json:"downBytesH"`
+	DownBytesHUnit string  `json:"downBytesHUnit"`
+	UpSpeed        float64 `json:"upSpeed"`
+	UpSpeedUnit    string  `json:"upSpeedUnit"`
+	DownSpeed      float64 `json:"downSpeed"`
+	DownSpeedUnit  string  `json:"downSpeedUnit"`
 }
 
 type RoughDisk struct {
-	Write     string `json:"write"`
-	Read      string `json:"read"`
-	WriteRate string `json:"writeRate"`
-	ReadRate  string `json:"readRate"`
+	Write         float64 `json:"write"`
+	WriteUnit     string  `json:"writeUnit"`
+	Read          float64 `json:"read"`
+	ReadUnit      string  `json:"readUnit"`
+	WriteRate     float64 `json:"writeRate"`
+	WriteRateUnit string  `json:"writeRateUnit"`
+	ReadRate      float64 `json:"readRate"`
+	ReadRateUnit  string  `json:"readRateUnit"`
 }
