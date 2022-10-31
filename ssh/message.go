@@ -237,3 +237,7 @@ type Disk struct {
 	WriteIOPS  int64   `json:"writeIOPS"`
 	ReadIOPS   int64   `json:"readIOPS"`
 }
+
+type RoughMessage struct {
+	Message
+}

@@ -5,107 +5,10 @@ import (
 	"fmt"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
-	"io/ioutil"
 	"log"
-	"os"
 	"sync"
 	"time"
 )
-
-type MonitorContext struct {
-	client  *sftp.Client
-	port    int
-	host    string
-	user    string
-	oldS    string
-	newS    string
-	oldTime time.Time
-	newTime time.Time
-}
-
-type Client[M any] struct {
-	listener map[string]Listener[M]
-	mutex    sync.Mutex
-	where    string
-}
-
-func NewClient[M any](where string) Client[M] {
-	return Client[M]{
-		listener: make(map[string]Listener[M], 0),
-		where:    where,
-	}
-}
-
-func (c *Client[M]) Handler(m M) {
-	c.mutex.Lock()
-	for _, l := range c.listener {
-		l(m)
-	}
-	c.mutex.Unlock()
-}
-
-func (c *Client[M]) RegisterHandler(key string, listener Listener[M]) {
-	c.mutex.Lock()
-	c.listener[key] = listener
-	c.mutex.Unlock()
-}
-
-func (c *Client[M]) RemoveHandler(key string) {
-	c.mutex.Lock()
-	delete(c.listener, key)
-	c.mutex.Unlock()
-}
-
-func (c *Client[M]) monitor(h *SSH, f func(context MonitorContext) *M, second int) {
-	oldS := ""
-	oldTime := time.Now()
-	for ; ; time.Sleep(time.Duration(second) * time.Second) {
-		select {
-		case s, ok := <-h.stop:
-			if !ok {
-				h.wg.Done()
-				return
-			} else {
-				log.Printf("Unexpect recv %d", s)
-			}
-		default:
-			srcFile, err := h.sftpClient.OpenFile(c.where, os.O_RDONLY)
-			if err != nil {
-				log.Printf("Read %s file fail : %v", c.where, err)
-				continue
-			}
-			newS, err := ioutil.ReadAll(srcFile)
-			if err != nil {
-				log.Printf("Read %s file fail : %v", c.where, err)
-				continue
-			}
-			newTime := time.Now()
-			err = srcFile.Close()
-			if err != nil {
-				log.Printf("Close %s file fail : %v", c.where, err)
-			}
-			m := f(MonitorContext{
-				client:  h.sftpClient,
-				port:    h.Port,
-				host:    h.Host,
-				user:    h.User,
-				oldS:    oldS,
-				newS:    string(newS),
-				oldTime: oldTime,
-				newTime: newTime,
-			})
-			if m != nil {
-				c.Handler(*m)
-			}
-			oldS = string(newS)
-			oldTime = newTime
-		}
-	}
-}
-
-func (c *Client[M]) LenListener() int {
-	return len(c.listener)
-}
 
 type SSH struct {
 	Key                     string
@@ -117,6 +20,8 @@ type SSH struct {
 	stop                    chan int
 	wg                      sync.WaitGroup
 	parser                  Parser
+	roughListener           map[string]Listener[RoughMessage]
+	roughMutex              sync.Mutex
 	cpuInfoClient           Client[CPUInfoMessage]
 	cpuPerformanceClient    Client[CPUPerformanceMessage]
 	memoryPerformanceClient Client[MemoryPerformanceMessage]
@@ -169,6 +74,7 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		sftpClient:              sftpClient,
 		stop:                    make(chan int),
 		parser:                  Parser{},
+		roughListener:           make(map[string]Listener[RoughMessage], 0),
 		cpuInfoClient:           NewClient[CPUInfoMessage]("/proc/cpuinfo"),
 		cpuPerformanceClient:    NewClient[CPUPerformanceMessage]("/proc/stat"),
 		memoryPerformanceClient: NewClient[MemoryPerformanceMessage]("/proc/meminfo"),
@@ -194,8 +100,29 @@ func (h *SSH) Close() {
 	}
 }
 
+func (h *SSH) monitorRough(second int) {
+	for ; ; time.Sleep(time.Duration(second) * time.Second) {
+		select {
+		case s, ok := <-h.stop:
+			if !ok {
+				h.wg.Done()
+				return
+			} else {
+				log.Printf("Unexpect recv %d", s)
+			}
+		default:
+			m := h.parser.parseRoughMessage(h.Port, h.Host, h.User)
+			h.roughMutex.Lock()
+			for _, l := range h.roughListener {
+				l(*m)
+			}
+			h.roughMutex.Unlock()
+		}
+	}
+}
+
 func (h *SSH) startAllMonitor() {
-	h.wg.Add(9)
+	h.wg.Add(10)
 	go h.cpuInfoClient.monitor(h, h.parser.parseCPUInfoMessage, 10)
 	go h.cpuPerformanceClient.monitor(h, h.parser.parseCPUPerformanceMessage, 2)
 	go h.memoryPerformanceClient.monitor(h, h.parser.parseMemoryPerformanceMessage, 2)
@@ -205,9 +132,22 @@ func (h *SSH) startAllMonitor() {
 	go h.netStatClient.monitor(h, h.parser.parseNetStatMessage, 2)
 	go h.tempClient.monitor(h, h.parser.parseTempMessage, 2)
 	go h.diskClient.monitor(h, h.parser.parseDiskMessage, 2)
+	go h.monitorRough(2)
 }
 
-func (h *SSH) RegisterAllListener(key string, listeners AllListener) {
+func (h *SSH) RegisterRoughListener(key string, listener Listener[RoughMessage]) {
+	h.roughMutex.Lock()
+	h.roughListener[key] = listener
+	h.roughMutex.Unlock()
+}
+
+func (h *SSH) RemoveRoughListener(key string) {
+	h.roughMutex.Lock()
+	delete(h.roughListener, key)
+	h.roughMutex.Unlock()
+}
+
+func (h *SSH) RegisterSSHListener(key string, listeners AllListener) {
 	if listeners.CPUInfoListener != nil {
 		h.cpuInfoClient.RegisterHandler(key, listeners.CPUInfoListener)
 	}
@@ -237,7 +177,7 @@ func (h *SSH) RegisterAllListener(key string, listeners AllListener) {
 	}
 }
 
-func (h *SSH) RemoveAllListener(key string) {
+func (h *SSH) RemoveSSHListener(key string) {
 	h.cpuInfoClient.RemoveHandler(key)
 	h.cpuPerformanceClient.RemoveHandler(key)
 	h.memoryPerformanceClient.RemoveHandler(key)
@@ -250,5 +190,7 @@ func (h *SSH) RemoveAllListener(key string) {
 }
 
 func (h *SSH) LenListener() int {
-	return h.cpuInfoClient.LenListener()
+	h.roughMutex.Lock()
+	defer h.roughMutex.Unlock()
+	return h.cpuInfoClient.LenListener() + len(h.roughListener)
 }

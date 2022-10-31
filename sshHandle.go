@@ -110,7 +110,7 @@ func handleNewSSHConnect(w http.ResponseWriter, r *http.Request) {
 			Result: make([]bool, 0),
 		}
 		m := &sync.Mutex{}
-		res, err := ssh.SSHManager.NewSSHClientWithConn(wsStartSSHRequest.Params[0].Port, wsStartSSHRequest.Params[0].Host, wsStartSSHRequest.Params[0].User, wsStartSSHRequest.Params[0].Passwd, conn, m)
+		res, err := ssh.Manager.NewSSHClientWithConn(wsStartSSHRequest.Params[0].Port, wsStartSSHRequest.Params[0].Host, wsStartSSHRequest.Params[0].User, wsStartSSHRequest.Params[0].Passwd, conn, m)
 		if !res || err != nil {
 			wsStartSSHResponse.Error = &ResponseError{
 				Code:    400,

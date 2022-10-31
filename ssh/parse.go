@@ -18,6 +18,18 @@ type Parser struct {
 	CPUProcessorNum int64
 }
 
+func (p *Parser) parseRoughMessage(port int, host, user string) *RoughMessage {
+	m := &RoughMessage{
+		Message{
+			Port: port,
+			Host: host,
+			User: user,
+		},
+	}
+
+	return m
+}
+
 func (p *Parser) parseCPUInfoMessage(c MonitorContext) *CPUInfoMessage {
 	m := &CPUInfoMessage{
 		Message: Message{
@@ -956,6 +968,7 @@ func (p *Parser) parseDiskMessage(c MonitorContext) *DiskMessage {
 	m.ReadRate = fmt.Sprintf("%s/s", roundMem((NewTotalRead-OldTotalRead)*1000/diff))
 	return m
 }
+
 func parseInt64(s string) (int64, bool) {
 	parseInt, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {

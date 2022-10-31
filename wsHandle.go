@@ -249,6 +249,69 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 		return
 	}
 	switch method {
+	case "ssh.startRoughMonitor":
+		log.Printf("%s handle ssh.startMonitior", conn.Key)
+		wsMonitorSSHRequest := &WSMonitorSSHRequest{}
+		if ok := messageJsonParseHelper(id, conn, msg, wsMonitorSSHRequest); !ok {
+			return
+		}
+		wsMonitorSSHResponse := &WSMonitorSSHResponse{
+			ResponseHead: ResponseHead{
+				Id:    *wsMonitorSSHRequest.Id,
+				Error: nil,
+			},
+			Result: make([]WSMonitorSSHResponseResult, 0),
+		}
+		for _, p := range wsMonitorSSHRequest.Params {
+			err := ssh.Manager.RegisterRoughListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, listenerTemplate[ssh.RoughMessage](conn, "rough"))
+			result := WSMonitorSSHResponseResult{
+				Port: p.Port,
+				Host: p.Host,
+				User: p.User,
+			}
+			if err == nil {
+				result.Monitor = true
+				result.Error = nil
+			} else {
+				errText := err.Error()
+				result.Monitor = false
+				result.Error = &ResponseError{
+					Code:    400,
+					Message: errText,
+				}
+			}
+			wsMonitorSSHResponse.Result = append(wsMonitorSSHResponse.Result, result)
+		}
+		if wsResponseBytes, ok := messageJsonStringifyHelper(wsMonitorSSHResponse); ok {
+			conn.WriteMessage(wsResponseBytes)
+		}
+
+	case "ssh.stopRoughMonitor":
+		wsUnMonitorSSHRequest := &WSUnMonitorSSHRequest{}
+		if ok := messageJsonParseHelper(id, conn, msg, wsUnMonitorSSHRequest); !ok {
+			return
+		}
+		wsUnMonitorSSHResponse := &WSUnMonitorSSHResponse{
+			ResponseHead: ResponseHead{
+				Id:    *wsUnMonitorSSHRequest.Id,
+				Error: nil,
+			},
+			Result: make([]WSUnMonitorSSHResponseResult, 0),
+		}
+		for _, p := range wsUnMonitorSSHRequest.Params {
+			ssh.Manager.RemoveRoughListener(p.Port, p.Host, p.User, conn.Key)
+			result := WSUnMonitorSSHResponseResult{
+				Port:      p.Port,
+				Host:      p.Host,
+				User:      p.User,
+				UnMonitor: true,
+				Error:     nil,
+			}
+			wsUnMonitorSSHResponse.Result = append(wsUnMonitorSSHResponse.Result, result)
+		}
+		if wsResponseBytes, ok := messageJsonStringifyHelper(wsUnMonitorSSHResponse); ok {
+			conn.WriteMessage(wsResponseBytes)
+		}
 	case "ssh.startMonitor":
 		log.Printf("%s handle ssh.startMonitior", conn.Key)
 		wsMonitorSSHRequest := &WSMonitorSSHRequest{}
@@ -263,7 +326,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 			Result: make([]WSMonitorSSHResponseResult, 0),
 		}
 		for _, p := range wsMonitorSSHRequest.Params {
-			err := ssh.SSHManager.RegisterAllMonitorListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, getSSHListener(conn))
+			err := ssh.Manager.RegisterSSHListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, getSSHListener(conn))
 			result := WSMonitorSSHResponseResult{
 				Port: p.Port,
 				Host: p.Host,
@@ -298,7 +361,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 			Result: make([]WSUnMonitorSSHResponseResult, 0),
 		}
 		for _, p := range wsUnMonitorSSHRequest.Params {
-			ssh.SSHManager.RemoveSSHListener(p.Port, p.Host, p.User, conn.Key)
+			ssh.Manager.RemoveSSHListener(p.Port, p.Host, p.User, conn.Key)
 			result := WSUnMonitorSSHResponseResult{
 				Port:      p.Port,
 				Host:      p.Host,

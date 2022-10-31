@@ -13,75 +13,99 @@ func generalKey(port int, host, user string) string {
 	return fmt.Sprintf("%s@%s:%d", user, host, port)
 }
 
-type Manager struct {
+type SSHManager struct {
 	sshMap      map[string]*SSH
 	sshMapMutex sync.Mutex
 }
 
-var SSHManager = newManager()
+var Manager = newManager()
 
-func newManager() *Manager {
-	return &Manager{
+func newManager() *SSHManager {
+	return &SSHManager{
 		sshMap: make(map[string]*SSH),
 	}
 }
 
-func (m *Manager) getSSH(port int, host, user, passwd string) (*SSH, error) {
+func (m *SSHManager) getSSH(port int, host, user, passwd string) (*SSH, error) {
 	key := generalKey(port, host, user)
 	m.sshMapMutex.Lock()
 	defer m.sshMapMutex.Unlock()
-	ssh, ok := m.sshMap[key]
+	c, ok := m.sshMap[key]
 
 	if ok {
-		return ssh, nil
+		return c, nil
 	}
-	ssh, err := newSSH(port, host, user, passwd)
+	c, err := newSSH(port, host, user, passwd)
 	if err != nil {
 		return nil, err
 	}
-	m.sshMap[key] = ssh
-	ssh.startAllMonitor()
-	log.Printf("ssh client create %s", ssh.Key)
-	return ssh, nil
+	m.sshMap[key] = c
+	c.startAllMonitor()
+	log.Printf("ssh client create %s", c.Key)
+	return c, nil
 }
 
-func (m *Manager) deleteSSH(key string) {
+func (m *SSHManager) deleteSSH(key string) {
 	m.sshMapMutex.Lock()
 	delete(m.sshMap, key)
 	m.sshMapMutex.Unlock()
 }
 
-func (m *Manager) RegisterAllMonitorListener(port int, host, user, passwd, wsKey string, listeners AllListener) error {
+func (m *SSHManager) RegisterSSHListener(port int, host, user, passwd, wsKey string, listeners AllListener) error {
 	s, err := m.getSSH(port, host, user, passwd)
 	if err != nil {
 		return err
 	}
-	s.RegisterAllListener(wsKey, listeners)
+	s.RegisterSSHListener(wsKey, listeners)
 	return nil
 }
 
-func (m *Manager) ClearListener(wsKey string) {
-	for _, v := range m.sshMap {
-		v.RemoveAllListener(wsKey)
-		if v.LenListener() == 0 {
-			v.Close()
-			m.deleteSSH(v.Key)
-			log.Printf("ssh client delete %s", v.Key)
-		}
-	}
-}
-
-func (m *Manager) RemoveSSHListener(port int, host, user, wsKey string) {
+func (m *SSHManager) RemoveSSHListener(port int, host, user, wsKey string) {
 	sshKey := generalKey(port, host, user)
 	v, ok := m.sshMap[sshKey]
 	if !ok {
 		return
 	}
-	v.RemoveAllListener(wsKey)
+	v.RemoveSSHListener(wsKey)
 	if v.LenListener() == 0 {
 		v.Close()
 		m.deleteSSH(v.Key)
 		log.Printf("ssh client delete %s", v.Key)
+	}
+}
+
+func (m *SSHManager) RegisterRoughListener(port int, host string, user string, passwd string, wsKey string, listener func(m RoughMessage)) error {
+	s, err := m.getSSH(port, host, user, passwd)
+	if err != nil {
+		return err
+	}
+	s.RegisterRoughListener(wsKey, listener)
+	return nil
+}
+
+func (m *SSHManager) RemoveRoughListener(port int, host string, user string, wsKey string) {
+	sshKey := generalKey(port, host, user)
+	v, ok := m.sshMap[sshKey]
+	if !ok {
+		return
+	}
+	v.RemoveRoughListener(wsKey)
+	if v.LenListener() == 0 {
+		v.Close()
+		m.deleteSSH(v.Key)
+		log.Printf("ssh client delete %s", v.Key)
+	}
+}
+
+func (m *SSHManager) ClearListener(wsKey string) {
+	for _, v := range m.sshMap {
+		v.RemoveSSHListener(wsKey)
+		v.RemoveRoughListener(wsKey)
+		if v.LenListener() == 0 {
+			v.Close()
+			m.deleteSSH(v.Key)
+			log.Printf("ssh client delete %s", v.Key)
+		}
 	}
 }
 
@@ -117,7 +141,7 @@ func (w myReader) Read(p []byte) (int, error) {
 	return len(data), nil
 }
 
-func (m *Manager) NewSSHClientWithConn(port int, host string, user string, passwd string, conn *websocket.Conn, mutex *sync.Mutex) (bool, error) {
+func (m *SSHManager) NewSSHClientWithConn(port int, host string, user string, passwd string, conn *websocket.Conn, mutex *sync.Mutex) (bool, error) {
 	c, err := newSimpleSSH(port, host, user, passwd)
 	if err != nil {
 		log.Printf("new client fail : %v", err)
