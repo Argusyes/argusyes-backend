@@ -15,18 +15,73 @@ import (
 )
 
 type Parser struct {
-	CPUProcessorNum int64
+	CPU struct {
+		CPUProcessorNum int64
+		Utilization     float64
+	}
+	Temp struct {
+		HighestTemp int64
+	}
+	Loadavg struct {
+		OneOccupy     float64
+		FiveOccupy    float64
+		FifteenOccupy float64
+	}
+	Memory struct {
+		FreeMemOccupy      float64
+		AvailableMemOccupy float64
+		SwapFreeOccupy     float64
+	}
+	Net struct {
+		UpBytesStr   string
+		DownBytesStr string
+		UpSpeed      string
+		DownSpeed    string
+	}
+	Disk struct {
+		Write     string
+		Read      string
+		WriteRate string
+		ReadRate  string
+	}
 }
 
 func (p *Parser) parseRoughMessage(port int, host, user string) *RoughMessage {
 	m := &RoughMessage{
-		Message{
+		Message: Message{
 			Port: port,
 			Host: host,
 			User: user,
 		},
+		CPU: RoughCPU{
+			Utilization: p.CPU.Utilization,
+		},
+		Temp: RoughTemp{
+			HighestTemp: p.Temp.HighestTemp,
+		},
+		Loadavg: RoughLoadavg{
+			OneOccupy:     p.Loadavg.OneOccupy,
+			FiveOccupy:    p.Loadavg.FiveOccupy,
+			FifteenOccupy: p.Loadavg.FifteenOccupy,
+		},
+		Memory: RoughMemory{
+			FreeMemOccupy:      p.Memory.FreeMemOccupy,
+			AvailableMemOccupy: p.Memory.AvailableMemOccupy,
+			SwapFreeOccupy:     p.Memory.SwapFreeOccupy,
+		},
+		Net: RoughNet{
+			UpSpeed:      p.Net.UpSpeed,
+			DownSpeed:    p.Net.DownSpeed,
+			UpBytesStr:   p.Net.UpBytesStr,
+			DownBytesStr: p.Net.DownBytesStr,
+		},
+		Disk: RoughDisk{
+			Write:     p.Disk.Write,
+			WriteRate: p.Disk.WriteRate,
+			Read:      p.Disk.Read,
+			ReadRate:  p.Disk.ReadRate,
+		},
 	}
-
 	return m
 }
 
@@ -89,7 +144,7 @@ func (p *Parser) parseCPUInfoMessage(c MonitorContext) *CPUInfoMessage {
 						continue
 					}
 					cpuInfo.Siblings = parseInt
-					p.CPUProcessorNum = parseInt
+					p.CPU.CPUProcessorNum = parseInt
 				} else if strings.HasPrefix(line, "cpu cores") {
 					temp := strings.TrimSpace(strings.Split(line, ":")[1])
 					parseInt, err := strconv.ParseInt(temp, 10, 64)
@@ -305,6 +360,8 @@ func (p *Parser) parseCPUPerformanceMessage(c MonitorContext) *CPUPerformanceMes
 	m.Total.IO = roundFloat(float64(100*(newIO-oldIO))/diff, 2)
 	m.Total.Steal = roundFloat(float64(100*(newSteal-oldSteal))/diff, 2)
 
+	p.CPU.Utilization = m.Total.Utilization
+
 	for i := 1; i < len(oldResult); i++ {
 		pOldTotalCPUTime := int64(0)
 		for j := 2; j < len(oldResult[i]); j++ {
@@ -435,6 +492,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerforma
 			}
 			m.Memory.FreeMem = roundMem(t * 1024)
 			m.Memory.FreeMemOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
+			p.Memory.FreeMemOccupy = m.Memory.FreeMemOccupy
 		} else if strings.HasPrefix(line, "MemAvailable:") {
 			t, ok := parseInt64(number)
 			if !ok {
@@ -442,6 +500,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerforma
 			}
 			m.Memory.AvailableMem = roundMem(t * 1024)
 			m.Memory.AvailableMemOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
+			p.Memory.AvailableMemOccupy = m.Memory.AvailableMemOccupy
 		} else if strings.HasPrefix(line, "Buffers:") {
 			t, ok := parseInt64(number)
 			if !ok {
@@ -477,6 +536,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerforma
 			}
 			m.Memory.SwapFree = roundMem(t * 1024)
 			m.Memory.SwapFreeOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
+			p.Memory.SwapFreeOccupy = m.Memory.SwapFreeOccupy
 		}
 	}
 
@@ -516,7 +576,7 @@ func (p *Parser) parseLoadavgMessage(c MonitorContext) *LoadavgMessage {
 		},
 		Loadavg: Loadavg{},
 	}
-	if p.CPUProcessorNum == 0 {
+	if p.CPU.CPUProcessorNum == 0 {
 		return nil
 	}
 	n := strings.ReplaceAll(c.newS, "\n", "")
@@ -525,15 +585,15 @@ func (p *Parser) parseLoadavgMessage(c MonitorContext) *LoadavgMessage {
 	if m.Loadavg.One, ok = parseFloat64(ss[0]); !ok {
 		return nil
 	}
-	m.Loadavg.OneOccupy = roundFloat(m.Loadavg.One/float64(p.CPUProcessorNum), 2)
+	m.Loadavg.OneOccupy = roundFloat(m.Loadavg.One/float64(p.CPU.CPUProcessorNum), 2)
 	if m.Loadavg.Five, ok = parseFloat64(ss[1]); !ok {
 		return nil
 	}
-	m.Loadavg.FiveOccupy = roundFloat(m.Loadavg.Five/float64(p.CPUProcessorNum), 2)
+	m.Loadavg.FiveOccupy = roundFloat(m.Loadavg.Five/float64(p.CPU.CPUProcessorNum), 2)
 	if m.Loadavg.Fifteen, ok = parseFloat64(ss[2]); !ok {
 		return nil
 	}
-	m.Loadavg.FifteenOccupy = roundFloat(m.Loadavg.Fifteen/float64(p.CPUProcessorNum), 2)
+	m.Loadavg.FifteenOccupy = roundFloat(m.Loadavg.Fifteen/float64(p.CPU.CPUProcessorNum), 2)
 	thread := strings.Split(ss[3], "/")
 	if m.Loadavg.Running, ok = parseInt64(thread[0]); !ok {
 		return nil
@@ -544,6 +604,9 @@ func (p *Parser) parseLoadavgMessage(c MonitorContext) *LoadavgMessage {
 	if m.Loadavg.LastPid, ok = parseInt64(ss[4]); !ok {
 		return nil
 	}
+	p.Loadavg.OneOccupy = m.Loadavg.One
+	p.Loadavg.FiveOccupy = m.Loadavg.Five
+	p.Loadavg.FifteenOccupy = m.Loadavg.FifteenOccupy
 	return m
 }
 
@@ -715,6 +778,11 @@ func (p *Parser) parseNetDevMessage(c MonitorContext) *NetDevMessage {
 	m.NetDevTotal.DownBytesStr = roundMem(m.NetDevTotal.DownBytes)
 	m.NetDevTotal.UpSpeed = fmt.Sprintf("%s/s", roundMem((m.NetDevTotal.UpBytes-oldTotalUpBytes)*1000/difTime))
 	m.NetDevTotal.DownSpeed = fmt.Sprintf("%s/s", roundMem((m.NetDevTotal.DownBytes-oldTotalDownBytes)*1000/difTime))
+	p.Net.UpSpeed = m.NetDevTotal.UpSpeed
+	p.Net.DownSpeed = m.NetDevTotal.DownSpeed
+	p.Net.UpBytesStr = m.NetDevTotal.UpBytesStr
+	p.Net.DownBytesStr = m.NetDevTotal.DownBytesStr
+
 	return m
 }
 
@@ -801,6 +869,7 @@ func (p *Parser) parseTempMessage(c MonitorContext) *TempMessage {
 	if m.TempMap["zone0"], ok = parseInt64(strings.TrimSpace(c.newS)); !ok {
 		return nil
 	}
+	p.Temp.HighestTemp = m.TempMap["zone0"]
 	for i := 1; i < 10; i++ {
 		file := fmt.Sprintf("/sys/class/thermal/thermal_zone%d/temp", i)
 		zone := fmt.Sprintf("zone%d", i)
@@ -808,7 +877,11 @@ func (p *Parser) parseTempMessage(c MonitorContext) *TempMessage {
 		if !ok {
 			break
 		}
-		if m.TempMap[zone], ok = parseInt64(strings.TrimSpace(temp)); !ok {
+		if m.TempMap[zone], ok = parseInt64(strings.TrimSpace(temp)); ok {
+			if m.TempMap[zone] > p.Temp.HighestTemp {
+				p.Temp.HighestTemp = m.TempMap[zone]
+			}
+		} else {
 			break
 		}
 	}
@@ -966,6 +1039,10 @@ func (p *Parser) parseDiskMessage(c MonitorContext) *DiskMessage {
 	m.Read = roundMem(NewTotalRead)
 	m.WriteRate = fmt.Sprintf("%s/s", roundMem((NewTotalWrite-OldTotalWrite)*1000/diff))
 	m.ReadRate = fmt.Sprintf("%s/s", roundMem((NewTotalRead-OldTotalRead)*1000/diff))
+	p.Disk.Write = m.Write
+	p.Disk.Read = m.Read
+	p.Disk.WriteRate = m.WriteRate
+	p.Disk.ReadRate = m.ReadRate
 	return m
 }
 

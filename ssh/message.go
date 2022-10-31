@@ -240,4 +240,44 @@ type Disk struct {
 
 type RoughMessage struct {
 	Message
+	CPU     RoughCPU     `json:"CPU"`
+	Temp    RoughTemp    `json:"Temp"`
+	Loadavg RoughLoadavg `json:"Loadavg"`
+	Memory  RoughMemory  `json:"Memory"`
+	Net     RoughNet     `json:"Net"`
+	Disk    RoughDisk    `json:"Disk"`
+}
+
+type RoughCPU struct {
+	Utilization float64 `json:"utilization"`
+}
+
+type RoughTemp struct {
+	HighestTemp int64 `json:"highestTemp"`
+}
+
+type RoughLoadavg struct {
+	OneOccupy     float64 `json:"oneOccupy"`
+	FiveOccupy    float64 `json:"fiveOccupy"`
+	FifteenOccupy float64 `json:"fifteenOccupy"`
+}
+
+type RoughMemory struct {
+	FreeMemOccupy      float64 `json:"freeMemOccupy"`
+	AvailableMemOccupy float64 `json:"availableMemOccupy"`
+	SwapFreeOccupy     float64 `json:"swapFreeOccupy"`
+}
+
+type RoughNet struct {
+	UpBytesStr   string `json:"upBytesStr"`
+	DownBytesStr string `json:"downBytesStr"`
+	UpSpeed      string `json:"upSpeed"`
+	DownSpeed    string `json:"downSpeed"`
+}
+
+type RoughDisk struct {
+	Write     string `json:"write"`
+	Read      string `json:"read"`
+	WriteRate string `json:"writeRate"`
+	ReadRate  string `json:"readRate"`
 }
