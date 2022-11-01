@@ -14,8 +14,8 @@ func generalKey(port int, host, user string) string {
 }
 
 type SSHManager struct {
-	sshMap      map[string]*SSH
-	sshMapMutex sync.Mutex
+	sshMap map[string]*SSH
+	mutex  sync.Mutex
 }
 
 var Manager = newManager()
@@ -28,8 +28,6 @@ func newManager() *SSHManager {
 
 func (m *SSHManager) getSSH(port int, host, user, passwd string) (*SSH, error) {
 	key := generalKey(port, host, user)
-	m.sshMapMutex.Lock()
-	defer m.sshMapMutex.Unlock()
 	c, ok := m.sshMap[key]
 
 	if ok {
@@ -46,12 +44,14 @@ func (m *SSHManager) getSSH(port int, host, user, passwd string) (*SSH, error) {
 }
 
 func (m *SSHManager) deleteSSH(key string) {
-	m.sshMapMutex.Lock()
+	m.mutex.Lock()
 	delete(m.sshMap, key)
-	m.sshMapMutex.Unlock()
+	m.mutex.Unlock()
 }
 
 func (m *SSHManager) RegisterSSHListener(port int, host, user, passwd, wsKey string, listeners AllListener) error {
+	m.mutex.Lock()
+	defer m.mutex.Lock()
 	s, err := m.getSSH(port, host, user, passwd)
 	if err != nil {
 		return err
@@ -76,6 +76,8 @@ func (m *SSHManager) RemoveSSHListener(port int, host, user, wsKey string) {
 
 func (m *SSHManager) RegisterRoughListener(port int, host string, user string, passwd string, wsKey string, listener func(m RoughMessage)) error {
 	s, err := m.getSSH(port, host, user, passwd)
+	m.mutex.Lock()
+	defer m.mutex.Lock()
 	if err != nil {
 		return err
 	}
