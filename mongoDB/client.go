@@ -19,7 +19,6 @@ type User struct {
 	UserName string `json:"userName" bson:"_id"`
 	Passwd   string `json:"passwd" bson:"passwd"`
 	Salt     string `bson:"salt"`
-	Token    string `json:"token" bson:"token"`
 }
 
 type UserSSH struct {
@@ -146,35 +145,15 @@ func (c *MongoClient) CheckUserPasswd(user User) error {
 	return nil
 }
 
-func (c *MongoClient) UpdateUserToken(username, token string) error {
-	filter := bson.D{{"_id", username}}
-	update := bson.D{{"$set", bson.D{{"token", token}}}}
-	result, err := c.userCollection.UpdateOne(context.TODO(), filter, update)
-	if err != nil || result.UpsertedCount == 1 {
-		return errors.New("update token fail" + err.Error())
-	}
-	return nil
-}
-
-func (c *MongoClient) CheckUserToken(username, token string) error {
-	var result User
-	if err := c.userCollection.FindOne(context.TODO(), bson.D{{"_id", username}}).Decode(&result); err != nil {
-		return err
-	} else if result.Token != token {
-		return errors.New("token diff")
-	}
-	return nil
-}
-
 func (c *MongoClient) ChangeUserPasswd(user User) interface{} {
 
 	salt := nextSalt()
 
 	filter := bson.D{{"_id", user.UserName}}
-	update := bson.D{{"$set", bson.D{{"token", nil}, {"passwd", MD5V(user.Passwd, salt)}, {"salt", salt}}}}
+	update := bson.D{{"$set", bson.D{{"passwd", MD5V(user.Passwd, salt)}, {"salt", salt}}}}
 	result, err := c.userCollection.UpdateOne(context.TODO(), filter, update)
 	if err != nil || result.UpsertedCount == 1 {
-		return errors.New("update token fail" + err.Error())
+		return errors.New("change passwd fail" + err.Error())
 	}
 	return nil
 }

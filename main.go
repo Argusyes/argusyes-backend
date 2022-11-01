@@ -118,10 +118,6 @@ func ginAuthMiddleware() gin.HandlerFunc {
 				abort(c, fmt.Sprintf("Token auth fail : %v", err))
 				return
 			}
-			if err := mongoDB.Client.CheckUserToken(loginRequest.UserName, strToken); err != nil {
-				abort(c, fmt.Sprintf("Other user has been login"))
-				return
-			}
 			c.Request.Header.Add("User-Name", loginRequest.UserName)
 		}
 		c.Next()

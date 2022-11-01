@@ -356,12 +356,6 @@ func loginHandler(context *gin.Context) {
 					Code:    500,
 					Message: &errText,
 				})
-			} else if err := mongoDB.Client.UpdateUserToken(user.UserName, token); err != nil {
-				errText := fmt.Sprintf("Update User Token Fail %v", err)
-				context.JSON(http.StatusOK, Response{
-					Code:    500,
-					Message: &errText,
-				})
 			} else {
 				context.JSON(http.StatusOK, Response{
 					Code:    200,
