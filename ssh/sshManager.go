@@ -47,6 +47,7 @@ func (m *SSHManager) deleteSSH(key string, client *SSH) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if client.LenListener() == 0 {
+		client.Close()
 		delete(m.sshMap, key)
 	}
 }
