@@ -10,4 +10,5 @@ type AllListener struct {
 	NetStatListener           Listener[NetStatMessage]
 	TempListener              Listener[TempMessage]
 	DiskListener              Listener[DiskMessage]
+	ProcessListener           Listener[ProcessMessage]
 }

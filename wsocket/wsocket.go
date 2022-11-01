@@ -96,7 +96,9 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Printf("websocket closed : %s", key)
 		}
+		m.websocketMapMutex.Lock()
 		delete(m.websocketMap, key)
+		m.websocketMapMutex.Unlock()
 		m.closeHandlerMutex.Lock()
 		for _, h := range m.closeHandler {
 			h(c)
@@ -107,7 +109,9 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 		mt, message, err := conn.ReadMessage()
 		if err != nil {
 			log.Printf("websocket %s error: %v", key, err)
+			m.websocketMapMutex.Lock()
 			delete(m.websocketMap, key)
+			m.websocketMapMutex.Unlock()
 			m.errorHandlerMutex.Lock()
 			for _, h := range m.errorHandler {
 				h(c, err)

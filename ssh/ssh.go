@@ -31,6 +31,7 @@ type SSH struct {
 	netStatClient           Client[NetStatMessage]
 	tempClient              Client[TempMessage]
 	diskClient              Client[DiskMessage]
+	processClient           Client[ProcessMessage]
 }
 
 func newSimpleSSH(port int, host, user, passwd string) (*ssh.Client, error) {
@@ -84,6 +85,7 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		netStatClient:           NewClient[NetStatMessage]("/proc/net/snmp"),
 		tempClient:              NewClient[TempMessage]("/sys/class/thermal/thermal_zone0/temp"),
 		diskClient:              NewClient[DiskMessage]("/proc/diskstats"),
+		processClient:           NewClient[ProcessMessage](""),
 	}, nil
 }
 
@@ -122,7 +124,7 @@ func (h *SSH) monitorRough(second int) {
 }
 
 func (h *SSH) startAllMonitor() {
-	h.wg.Add(10)
+	h.wg.Add(11)
 	go h.cpuInfoClient.monitor(h, h.parser.parseCPUInfoMessage, 10)
 	go h.cpuPerformanceClient.monitor(h, h.parser.parseCPUPerformanceMessage, 2)
 	go h.memoryPerformanceClient.monitor(h, h.parser.parseMemoryPerformanceMessage, 2)
@@ -132,6 +134,7 @@ func (h *SSH) startAllMonitor() {
 	go h.netStatClient.monitor(h, h.parser.parseNetStatMessage, 2)
 	go h.tempClient.monitor(h, h.parser.parseTempMessage, 2)
 	go h.diskClient.monitor(h, h.parser.parseDiskMessage, 2)
+	go h.processClient.monitor(h, h.parser.parseProcessMessage, 5)
 	go h.monitorRough(2)
 }
 
@@ -174,6 +177,9 @@ func (h *SSH) RegisterSSHListener(key string, listeners AllListener) {
 	}
 	if listeners.DiskListener != nil {
 		h.diskClient.RegisterHandler(key, listeners.DiskListener)
+	}
+	if listeners.ProcessListener != nil {
+		h.processClient.RegisterHandler(key, listeners.ProcessListener)
 	}
 }
 

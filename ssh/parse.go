@@ -10,8 +10,11 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 type Parser struct {
@@ -101,7 +104,7 @@ func (p *Parser) parseRoughMessage(port int, host, user string) *RoughMessage {
 	return m
 }
 
-func (p *Parser) parseCPUInfoMessage(c MonitorContext) *CPUInfoMessage {
+func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
 	m := &CPUInfoMessage{
 		Message: Message{
 			Port: c.port,
@@ -271,7 +274,12 @@ func (p *Parser) parseCPUInfoMessage(c MonitorContext) *CPUInfoMessage {
 	return m
 }
 
-func (p *Parser) parseCPUPerformanceMessage(c MonitorContext) *CPUPerformanceMessage {
+func (p *Parser) parseCPUPerformanceMessage(c *MonitorContext) *CPUPerformanceMessage {
+	defer func() {
+		c.oldTime = c.newTime
+		c.oldS = c.newS
+		c.newS = ""
+	}()
 	if c.oldS == "" {
 		return nil
 	}
@@ -458,7 +466,7 @@ func (p *Parser) parseCPUPerformanceMessage(c MonitorContext) *CPUPerformanceMes
 	return m
 }
 
-func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerformanceMessage {
+func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerformanceMessage {
 	m := &MemoryPerformanceMessage{
 		Message: Message{
 			Port: c.port,
@@ -563,7 +571,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c MonitorContext) *MemoryPerforma
 	return m
 }
 
-func (p *Parser) parseUptimeMessage(c MonitorContext) *UptimeMessage {
+func (p *Parser) parseUptimeMessage(c *MonitorContext) *UptimeMessage {
 	m := &UptimeMessage{
 		Message: Message{
 			Port: c.port,
@@ -587,7 +595,7 @@ func (p *Parser) parseUptimeMessage(c MonitorContext) *UptimeMessage {
 	return m
 }
 
-func (p *Parser) parseLoadavgMessage(c MonitorContext) *LoadavgMessage {
+func (p *Parser) parseLoadavgMessage(c *MonitorContext) *LoadavgMessage {
 	m := &LoadavgMessage{
 		Message: Message{
 			Port: c.port,
@@ -630,7 +638,12 @@ func (p *Parser) parseLoadavgMessage(c MonitorContext) *LoadavgMessage {
 	return m
 }
 
-func (p *Parser) parseNetDevMessage(c MonitorContext) *NetDevMessage {
+func (p *Parser) parseNetDevMessage(c *MonitorContext) *NetDevMessage {
+	defer func() {
+		c.oldTime = c.newTime
+		c.oldS = c.newS
+		c.newS = ""
+	}()
 	if c.oldS == "" {
 		return nil
 	}
@@ -802,11 +815,10 @@ func (p *Parser) parseNetDevMessage(c MonitorContext) *NetDevMessage {
 	p.Net.DownSpeed, p.Net.DownSpeedUnit = m.NetDevTotal.DownSpeed, m.NetDevTotal.DownSpeedUnit
 	p.Net.UpBytesH, p.Net.UpBytesHUnit = m.NetDevTotal.UpBytesH, m.NetDevTotal.UpBytesHUnit
 	p.Net.DownBytesH, p.Net.DownBytesHUnit = m.NetDevTotal.DownBytesH, m.NetDevTotal.DownBytesHUnit
-
 	return m
 }
 
-func (p *Parser) parseNetStatMessage(c MonitorContext) *NetStatMessage {
+func (p *Parser) parseNetStatMessage(c *MonitorContext) *NetStatMessage {
 	m := &NetStatMessage{
 		Message{
 			Port: c.port,
@@ -876,7 +888,7 @@ func (p *Parser) parseNetStatMessage(c MonitorContext) *NetStatMessage {
 	return m
 }
 
-func (p *Parser) parseTempMessage(c MonitorContext) *TempMessage {
+func (p *Parser) parseTempMessage(c *MonitorContext) *TempMessage {
 	m := &TempMessage{
 		Message: Message{
 			Port: c.port,
@@ -908,7 +920,12 @@ func (p *Parser) parseTempMessage(c MonitorContext) *TempMessage {
 	return m
 }
 
-func (p *Parser) parseDiskMessage(c MonitorContext) *DiskMessage {
+func (p *Parser) parseDiskMessage(c *MonitorContext) *DiskMessage {
+	defer func() {
+		c.oldTime = c.newTime
+		c.oldS = c.newS
+		c.newS = ""
+	}()
 	if c.oldS == "" {
 		return nil
 	}
@@ -1063,6 +1080,206 @@ func (p *Parser) parseDiskMessage(c MonitorContext) *DiskMessage {
 	p.Disk.Read, p.Disk.ReadUnit = m.Read, m.ReadUnit
 	p.Disk.WriteRate, p.Disk.WriteRateUnit = m.WriteRate, m.WriteRateUnit
 	p.Disk.ReadRate, p.Disk.ReadRateUnit = m.ReadRate, m.ReadRateUnit
+	return m
+}
+
+func (p *Parser) parseProcessMessage(c *MonitorContext) *ProcessMessage {
+
+	cpuStat, ok := readFile("/proc/stat", c.client, true)
+	if !ok {
+		return nil
+	}
+	cpuStat = strings.Split(cpuStat, "\n")[0]
+
+	proc, err := c.client.ReadDir("/proc")
+	if err != nil {
+		log.Printf("Read Proc fail : %v", err)
+		return nil
+	}
+	numberReg := regexp.MustCompile(`\d+`)
+	name := make([]string, 0)
+	for _, n := range proc {
+		s := n.Name()
+		if numberReg.Match([]byte(s)) && n.IsDir() {
+			name = append(name, s)
+		}
+	}
+
+	stats := make([]string, 0)
+	stats = append(stats, cpuStat)
+	var mutex sync.Mutex
+	var wg sync.WaitGroup
+	count := 0
+	var cMutex sync.Mutex
+	total := len(name)
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			for {
+				if count >= total {
+					break
+				} else {
+					cMutex.Lock()
+					n := name[count]
+					count++
+					cMutex.Unlock()
+
+					stat, ok := readFile("/proc/"+n+"/stat", c.client, false)
+					if !ok {
+						continue
+					}
+					stat = strings.ReplaceAll(stat, "\n", "")
+					m, ok := readFile("/proc/"+n+"/statm", c.client, false)
+					if !ok {
+						continue
+					}
+					m = strings.ReplaceAll(m, "\n", "")
+					mutex.Lock()
+					stats = append(stats, stat+" "+m)
+					mutex.Unlock()
+				}
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+
+	c.newS = strings.Join(stats, "\n")
+	c.newTime = time.Now()
+
+	defer func() {
+		c.oldTime = c.newTime
+		c.oldS = c.newS
+		c.newS = ""
+	}()
+
+	if c.oldS == "" {
+		return nil
+	}
+	m := &ProcessMessage{
+		Message: Message{
+			Port: c.port,
+			Host: c.host,
+			User: c.user,
+		},
+		Process: make([]Process, 0),
+	}
+	oldStats := strings.Split(c.oldS, "\n")
+
+	oldCPUStat := oldStats[0]
+	oldCPUStatSS := strings.Split(oldCPUStat, " ")
+	oldTotalCPUTime := int64(0)
+	for i := 1; i < len(oldCPUStatSS); i++ {
+		if oldCPUStatSS[i] == "" {
+			continue
+		}
+		t, ok := parseInt64(oldCPUStatSS[i])
+		if ok {
+			oldTotalCPUTime += t
+		}
+	}
+
+	cpuStatSS := strings.Split(cpuStat, " ")
+	newTotalCPUTime := int64(0)
+	for i := 1; i < len(cpuStatSS); i++ {
+		if cpuStatSS[i] == "" {
+			continue
+		}
+		t, ok := parseInt64(cpuStatSS[i])
+		if ok {
+			newTotalCPUTime += t
+		}
+	}
+	cpuTimeDiff := newTotalCPUTime - oldTotalCPUTime
+
+	statReg := regexp.MustCompile(`^\s*(\d+)\s+(\S+)\s+(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d-]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+).*\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)$`)
+	if statReg == nil {
+		log.Printf("parse stat reg fail : %v", statReg)
+		return nil
+	}
+
+	oldStatsMap := make(map[string][]string, 0)
+	for i, s := range oldStats {
+		if i == 0 {
+			continue
+		}
+		ss := statReg.FindAllStringSubmatch(s, -1)
+		if ss == nil {
+			continue
+		}
+		oldStatsMap[ss[0][1]+ss[0][2]] = ss[0]
+	}
+
+	for i, s := range stats {
+		if i == 0 {
+			continue
+		}
+		statRegResult := statReg.FindAllStringSubmatch(s, -1)
+		if statRegResult == nil {
+			continue
+		}
+		ss := statRegResult[0]
+		oldSS, ok := oldStatsMap[ss[1]+ss[2]]
+		if !ok {
+			continue
+		}
+		pid, ok := parseInt64(strings.TrimSpace(ss[1]))
+		if !ok {
+			continue
+		}
+		process := Process{
+			PID:  pid,
+			Name: strings.TrimSpace(ss[2]),
+		}
+
+		utime, ok := parseInt64(ss[14])
+		if !ok {
+			continue
+		}
+		stime, ok := parseInt64(ss[15])
+		if !ok {
+			continue
+		}
+		cutime, ok := parseInt64(ss[16])
+		if !ok {
+			continue
+		}
+		cstime, ok := parseInt64(ss[17])
+		if !ok {
+			continue
+		}
+		processTotalTime := utime + stime + cutime + cstime
+
+		oldUtime, ok := parseInt64(oldSS[14])
+		if !ok {
+			continue
+		}
+		oldStime, ok := parseInt64(oldSS[15])
+		if !ok {
+			continue
+		}
+		oldCutime, ok := parseInt64(oldSS[16])
+		if !ok {
+			continue
+		}
+		oldCstime, ok := parseInt64(oldSS[17])
+		if !ok {
+			continue
+		}
+		oldProcessTotalTime := oldUtime + oldStime + oldCutime + oldCstime
+		process.CPU = roundFloat((float64(processTotalTime)-float64(oldProcessTotalTime))/float64(cpuTimeDiff), 2)
+		mem, ok := parseInt64(ss[len(ss)-5])
+		if !ok {
+			continue
+		}
+		process.Mem, process.MemUnit = roundMem(mem * 4096)
+		if process.CPU > 0 || process.Mem > 0 {
+			m.Process = append(m.Process, process)
+		}
+	}
+
+	sort.Sort(Processes(m.Process))
+	m.Process = m.Process[:50]
 	return m
 }
 

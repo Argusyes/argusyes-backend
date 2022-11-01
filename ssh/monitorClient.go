@@ -53,9 +53,17 @@ func (c *Client[M]) RemoveHandler(key string) {
 	c.mutex.Unlock()
 }
 
-func (c *Client[M]) monitor(h *SSH, f func(context MonitorContext) *M, second int) {
-	oldS := ""
-	oldTime := time.Now()
+func (c *Client[M]) monitor(h *SSH, f func(context *MonitorContext) *M, second int) {
+	context := &MonitorContext{
+		client:  h.sftpClient,
+		port:    h.Port,
+		host:    h.Host,
+		user:    h.User,
+		oldS:    "",
+		newS:    "",
+		oldTime: time.Now(),
+		newTime: time.Now(),
+	}
 	for ; ; time.Sleep(time.Duration(second) * time.Second) {
 		select {
 		case s, ok := <-h.stop:
@@ -66,36 +74,28 @@ func (c *Client[M]) monitor(h *SSH, f func(context MonitorContext) *M, second in
 				log.Printf("Unexpect recv %d", s)
 			}
 		default:
-			srcFile, err := h.sftpClient.OpenFile(c.where, os.O_RDONLY)
-			if err != nil {
-				log.Printf("Read %s file fail : %v", c.where, err)
-				continue
+			if c.where != "" {
+				srcFile, err := h.sftpClient.OpenFile(c.where, os.O_RDONLY)
+				if err != nil {
+					log.Printf("Read %s file fail : %v", c.where, err)
+					continue
+				}
+				newS, err := ioutil.ReadAll(srcFile)
+				if err != nil {
+					log.Printf("Read %s file fail : %v", c.where, err)
+					continue
+				}
+				context.newS = string(newS)
+				context.newTime = time.Now()
+				err = srcFile.Close()
+				if err != nil {
+					log.Printf("Close %s file fail : %v", c.where, err)
+				}
 			}
-			newS, err := ioutil.ReadAll(srcFile)
-			if err != nil {
-				log.Printf("Read %s file fail : %v", c.where, err)
-				continue
-			}
-			newTime := time.Now()
-			err = srcFile.Close()
-			if err != nil {
-				log.Printf("Close %s file fail : %v", c.where, err)
-			}
-			m := f(MonitorContext{
-				client:  h.sftpClient,
-				port:    h.Port,
-				host:    h.Host,
-				user:    h.User,
-				oldS:    oldS,
-				newS:    string(newS),
-				oldTime: oldTime,
-				newTime: newTime,
-			})
+			m := f(context)
 			if m != nil {
 				c.Handler(*m)
 			}
-			oldS = string(newS)
-			oldTime = newTime
 		}
 	}
 }

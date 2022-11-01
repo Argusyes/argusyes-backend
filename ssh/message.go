@@ -266,6 +266,35 @@ type Disk struct {
 	ReadIOPS      int64   `json:"readIOPS"`
 }
 
+type ProcessMessage struct {
+	Message
+	Process []Process `json:"process"`
+}
+
+type Processes []Process
+
+func (s Processes) Len() int { return len(s) }
+
+func (s Processes) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+func (s Processes) Less(i, j int) bool {
+	if s[i].CPU > s[j].CPU {
+		return true
+	} else if s[i].CPU < s[j].CPU {
+		return false
+	} else {
+		return s[i].Mem > s[j].Mem
+	}
+}
+
+type Process struct {
+	PID     int64   `json:"PID"`
+	Name    string  `json:"name"`
+	CPU     float64 `json:"CPU"`
+	Mem     float64 `json:"mem"`
+	MemUnit string  `json:"memUnit"`
+}
+
 type RoughMessage struct {
 	Message
 	CPU     RoughCPU     `json:"CPU"`
