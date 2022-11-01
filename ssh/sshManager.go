@@ -51,7 +51,7 @@ func (m *SSHManager) deleteSSH(key string) {
 
 func (m *SSHManager) RegisterSSHListener(port int, host, user, passwd, wsKey string, listeners AllListener) error {
 	m.mutex.Lock()
-	defer m.mutex.Lock()
+	defer m.mutex.Unlock()
 	s, err := m.getSSH(port, host, user, passwd)
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func (m *SSHManager) RemoveSSHListener(port int, host, user, wsKey string) {
 func (m *SSHManager) RegisterRoughListener(port int, host string, user string, passwd string, wsKey string, listener func(m RoughMessage)) error {
 	s, err := m.getSSH(port, host, user, passwd)
 	m.mutex.Lock()
-	defer m.mutex.Lock()
+	defer m.mutex.Unlock()
 	if err != nil {
 		return err
 	}
