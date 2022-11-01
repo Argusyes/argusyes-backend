@@ -6,11 +6,15 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"log"
+	"mutexMap"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type SSH struct {
+	close                   int32
+	empty                   int32
 	Key                     string
 	Port                    int
 	Host                    string
@@ -20,8 +24,7 @@ type SSH struct {
 	stop                    chan int
 	wg                      sync.WaitGroup
 	parser                  Parser
-	roughListener           map[string]Listener[RoughMessage]
-	roughMutex              sync.Mutex
+	roughListener           mutexMap.MutexMap[Listener[RoughMessage]]
 	cpuInfoClient           Client[CPUInfoMessage]
 	cpuPerformanceClient    Client[CPUPerformanceMessage]
 	memoryPerformanceClient Client[MemoryPerformanceMessage]
@@ -75,7 +78,7 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		sftpClient:              sftpClient,
 		stop:                    make(chan int),
 		parser:                  Parser{},
-		roughListener:           make(map[string]Listener[RoughMessage], 0),
+		roughListener:           mutexMap.NewMutexMap[Listener[RoughMessage]](0),
 		cpuInfoClient:           NewClient[CPUInfoMessage]("/proc/cpuinfo"),
 		cpuPerformanceClient:    NewClient[CPUPerformanceMessage]("/proc/stat"),
 		memoryPerformanceClient: NewClient[MemoryPerformanceMessage]("/proc/meminfo"),
@@ -90,15 +93,18 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 }
 
 func (h *SSH) Close() {
-	close(h.stop)
-	h.wg.Wait()
-	err := h.sftpClient.Close()
-	if err != nil {
-		log.Printf("sftp client close fail : %v", err)
-	}
-	err = h.sshClient.Close()
-	if err != nil {
-		log.Printf("ssh client close fail : %v", err)
+	closed := !atomic.CompareAndSwapInt32(&h.close, 0, 1)
+	if !closed {
+		close(h.stop)
+		h.wg.Wait()
+		err := h.sftpClient.Close()
+		if err != nil {
+			log.Printf("sftp client close fail : %v", err)
+		}
+		err = h.sshClient.Close()
+		if err != nil {
+			log.Printf("ssh client close fail : %v", err)
+		}
 	}
 }
 
@@ -114,11 +120,9 @@ func (h *SSH) monitorRough(second int) {
 			}
 		default:
 			m := h.parser.parseRoughMessage(h.Port, h.Host, h.User)
-			h.roughMutex.Lock()
-			for _, l := range h.roughListener {
-				l(*m)
-			}
-			h.roughMutex.Unlock()
+			h.roughListener.Each(func(key string, val Listener[RoughMessage]) {
+				val(*m)
+			})
 		}
 	}
 }
@@ -139,18 +143,17 @@ func (h *SSH) startAllMonitor() {
 }
 
 func (h *SSH) RegisterRoughListener(key string, listener Listener[RoughMessage]) {
-	h.roughMutex.Lock()
-	h.roughListener[key] = listener
-	h.roughMutex.Unlock()
+	atomic.AddInt32(&h.empty, 1)
+	h.roughListener.Set(key, listener)
 }
 
 func (h *SSH) RemoveRoughListener(key string) {
-	h.roughMutex.Lock()
-	delete(h.roughListener, key)
-	h.roughMutex.Unlock()
+	atomic.AddInt32(&h.empty, -1)
+	h.roughListener.Remove(key)
 }
 
 func (h *SSH) RegisterSSHListener(key string, listeners AllListener) {
+	atomic.AddInt32(&h.empty, 1)
 	if listeners.CPUInfoListener != nil {
 		h.cpuInfoClient.RegisterHandler(key, listeners.CPUInfoListener)
 	}
@@ -184,6 +187,7 @@ func (h *SSH) RegisterSSHListener(key string, listeners AllListener) {
 }
 
 func (h *SSH) RemoveSSHListener(key string) {
+	atomic.AddInt32(&h.empty, -1)
 	h.cpuInfoClient.RemoveHandler(key)
 	h.cpuPerformanceClient.RemoveHandler(key)
 	h.memoryPerformanceClient.RemoveHandler(key)
@@ -195,8 +199,6 @@ func (h *SSH) RemoveSSHListener(key string) {
 	h.diskClient.RemoveHandler(key)
 }
 
-func (h *SSH) LenListener() int {
-	h.roughMutex.Lock()
-	defer h.roughMutex.Unlock()
-	return h.cpuInfoClient.LenListener() + len(h.roughListener)
+func (h *SSH) Empty() bool {
+	return h.empty == 0
 }

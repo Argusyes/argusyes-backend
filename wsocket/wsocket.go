@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"log"
+	"mutexMap"
 	"net/http"
 	"sync"
 )
@@ -26,7 +27,7 @@ func (c *Connect) WriteMessage(data []byte) {
 	defer c.m.Unlock()
 	err := c.conn.WriteMessage(websocket.TextMessage, data)
 	if err != nil {
-		delete(c.manager.websocketMap, c.Key)
+		c.manager.websocketMap.Remove(c.Key)
 		c.manager.errorHandlerMutex.Lock()
 		for _, h := range c.manager.errorHandler {
 			h(c, err)
@@ -36,8 +37,7 @@ func (c *Connect) WriteMessage(data []byte) {
 }
 
 type Manager struct {
-	websocketMapMutex   sync.Mutex
-	websocketMap        map[string]*Connect
+	websocketMap        mutexMap.MutexMap[*Connect]
 	connectHandlerMutex sync.Mutex
 	connectHandler      []ConnectHandler
 	messageHandlerMutex sync.Mutex
@@ -50,7 +50,7 @@ type Manager struct {
 
 func newManager() (m *Manager) {
 	return &Manager{
-		websocketMap:   make(map[string]*Connect),
+		websocketMap:   mutexMap.NewMutexMap[*Connect](0),
 		connectHandler: make([]ConnectHandler, 0),
 		messageHandler: make([]MessageHandler, 0),
 		closeHandler:   make([]CloseHandler, 0),
@@ -78,9 +78,7 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 		conn:    conn,
 		manager: m,
 	}
-	m.websocketMapMutex.Lock()
-	m.websocketMap[key] = c
-	m.websocketMapMutex.Unlock()
+	m.websocketMap.Set(key, c)
 	log.Printf("websocket connected from : %s", key)
 
 	m.connectHandlerMutex.Lock()
@@ -96,9 +94,7 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Printf("websocket closed : %s", key)
 		}
-		m.websocketMapMutex.Lock()
-		delete(m.websocketMap, key)
-		m.websocketMapMutex.Unlock()
+		m.websocketMap.Remove(key)
 		m.closeHandlerMutex.Lock()
 		for _, h := range m.closeHandler {
 			h(c)
@@ -109,9 +105,7 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 		mt, message, err := conn.ReadMessage()
 		if err != nil {
 			log.Printf("websocket %s error: %v", key, err)
-			m.websocketMapMutex.Lock()
-			delete(m.websocketMap, key)
-			m.websocketMapMutex.Unlock()
+			m.websocketMap.Remove(key)
 			m.errorHandlerMutex.Lock()
 			for _, h := range m.errorHandler {
 				h(c, err)

@@ -264,7 +264,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 			Result: make([]WSMonitorSSHResponseResult, 0),
 		}
 		for _, p := range wsMonitorSSHRequest.Params {
-			err := ssh.Manager.RegisterRoughListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, listenerTemplate[ssh.RoughMessage](conn, "rough"))
+			err := ssh.M.RegisterRoughListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, listenerTemplate[ssh.RoughMessage](conn, "rough"))
 			result := WSMonitorSSHResponseResult{
 				Port: p.Port,
 				Host: p.Host,
@@ -300,7 +300,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 			Result: make([]WSUnMonitorSSHResponseResult, 0),
 		}
 		for _, p := range wsUnMonitorSSHRequest.Params {
-			ssh.Manager.RemoveRoughListener(p.Port, p.Host, p.User, conn.Key)
+			ssh.M.RemoveRoughListener(p.Port, p.Host, p.User, conn.Key)
 			result := WSUnMonitorSSHResponseResult{
 				Port:      p.Port,
 				Host:      p.Host,
@@ -327,7 +327,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 			Result: make([]WSMonitorSSHResponseResult, 0),
 		}
 		for _, p := range wsMonitorSSHRequest.Params {
-			err := ssh.Manager.RegisterSSHListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, getSSHListener(conn))
+			err := ssh.M.RegisterSSHListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, getSSHListener(conn))
 			result := WSMonitorSSHResponseResult{
 				Port: p.Port,
 				Host: p.Host,
@@ -362,7 +362,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 			Result: make([]WSUnMonitorSSHResponseResult, 0),
 		}
 		for _, p := range wsUnMonitorSSHRequest.Params {
-			ssh.Manager.RemoveSSHListener(p.Port, p.Host, p.User, conn.Key)
+			ssh.M.RemoveSSHListener(p.Port, p.Host, p.User, conn.Key)
 			result := WSUnMonitorSSHResponseResult{
 				Port:      p.Port,
 				Host:      p.Host,

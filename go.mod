@@ -1,14 +1,16 @@
 module argus
 
-go 1.18
+go 1.19
 
 replace (
 	mongoDB => ./mongoDB
 	ssh => ./ssh
 	wsocket => ./wsocket
+	mutexMap => ./mutexMap
 )
 
 require ssh v0.0.0
+require mutexMap v0.0.0
 
 require (
 	github.com/deckarep/golang-set/v2 v2.1.0

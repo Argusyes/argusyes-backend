@@ -4,6 +4,7 @@ import (
 	"github.com/pkg/sftp"
 	"io/ioutil"
 	"log"
+	"mutexMap"
 	"os"
 	"sync"
 	"time"
@@ -21,36 +22,30 @@ type MonitorContext struct {
 }
 
 type Client[M any] struct {
-	listener map[string]Listener[M]
+	listener mutexMap.MutexMap[Listener[M]]
 	mutex    sync.Mutex
 	where    string
 }
 
 func NewClient[M any](where string) Client[M] {
 	return Client[M]{
-		listener: make(map[string]Listener[M], 0),
+		listener: mutexMap.NewMutexMap[Listener[M]](0),
 		where:    where,
 	}
 }
 
 func (c *Client[M]) Handler(m M) {
-	c.mutex.Lock()
-	for _, l := range c.listener {
-		l(m)
-	}
-	c.mutex.Unlock()
+	c.listener.Each(func(key string, val Listener[M]) {
+		val(m)
+	})
 }
 
 func (c *Client[M]) RegisterHandler(key string, listener Listener[M]) {
-	c.mutex.Lock()
-	c.listener[key] = listener
-	c.mutex.Unlock()
+	c.listener.Set(key, listener)
 }
 
 func (c *Client[M]) RemoveHandler(key string) {
-	c.mutex.Lock()
-	delete(c.listener, key)
-	c.mutex.Unlock()
+	c.listener.Remove(key)
 }
 
 func (c *Client[M]) monitor(h *SSH, f func(context *MonitorContext) *M, second int) {
@@ -101,14 +96,9 @@ func (c *Client[M]) monitor(h *SSH, f func(context *MonitorContext) *M, second i
 }
 
 func (c *Client[M]) LenListener() int {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	return len(c.listener)
+	return c.listener.Len()
 }
 
 func (c *Client[M]) HasListener(key string) bool {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	_, ok := c.listener[key]
-	return ok
+	return c.listener.Has(key)
 }

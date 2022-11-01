@@ -6,6 +6,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"io"
 	"log"
+	"mutexMap"
 	"sync"
 )
 
@@ -13,22 +14,26 @@ func generalKey(port int, host, user string) string {
 	return fmt.Sprintf("%s@%s:%d", user, host, port)
 }
 
-type SSHManager struct {
-	sshMap map[string]*SSH
-	mutex  sync.Mutex
+type Manager struct {
+	clients mutexMap.MutexMap[*SSH]
+	mutexes mutexMap.MutexMap[sync.Mutex]
 }
 
-var Manager = newManager()
+var M = newManager()
 
-func newManager() *SSHManager {
-	return &SSHManager{
-		sshMap: make(map[string]*SSH),
+func newManager() *Manager {
+	return &Manager{
+		clients: mutexMap.NewMutexMap[*SSH](0),
+		mutexes: mutexMap.NewMutexMap[sync.Mutex](0),
 	}
 }
 
-func (m *SSHManager) getSSH(port int, host, user, passwd string) (*SSH, error) {
+func (m *Manager) getSSH(port int, host, user, passwd string) (*SSH, error) {
 	key := generalKey(port, host, user)
-	c, ok := m.sshMap[key]
+	mutex := m.mutexes.GetNilThenSet(key, sync.Mutex{})
+	mutex.Lock()
+	defer mutex.Unlock()
+	c, ok := m.clients.Get(key)
 
 	if ok {
 		return c, nil
@@ -37,24 +42,28 @@ func (m *SSHManager) getSSH(port int, host, user, passwd string) (*SSH, error) {
 	if err != nil {
 		return nil, err
 	}
-	m.sshMap[key] = c
+	m.clients.Set(key, c)
 	c.startAllMonitor()
 	log.Printf("ssh client create %s", c.Key)
 	return c, nil
 }
 
-func (m *SSHManager) deleteSSH(key string, client *SSH) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	if client.LenListener() == 0 {
+func (m *Manager) deleteSSH(key string, client *SSH) {
+	mutex := m.mutexes.GetNilThenSet(key, sync.Mutex{})
+	mutex.Lock()
+	defer mutex.Unlock()
+	if client.Empty() {
 		client.Close()
-		delete(m.sshMap, key)
+		m.clients.Remove(key)
+		m.mutexes.Remove(key)
 	}
 }
 
-func (m *SSHManager) RegisterSSHListener(port int, host, user, passwd, wsKey string, listeners AllListener) error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+func (m *Manager) RegisterSSHListener(port int, host, user, passwd, wsKey string, listeners AllListener) error {
+	key := generalKey(port, host, user)
+	mutex := m.mutexes.GetNilThenSet(key, sync.Mutex{})
+	mutex.Lock()
+	defer mutex.Unlock()
 	s, err := m.getSSH(port, host, user, passwd)
 	if err != nil {
 		return err
@@ -63,23 +72,28 @@ func (m *SSHManager) RegisterSSHListener(port int, host, user, passwd, wsKey str
 	return nil
 }
 
-func (m *SSHManager) RemoveSSHListener(port int, host, user, wsKey string) {
-	sshKey := generalKey(port, host, user)
-	v, ok := m.sshMap[sshKey]
+func (m *Manager) RemoveSSHListener(port int, host, user, wsKey string) {
+	key := generalKey(port, host, user)
+	mutex := m.mutexes.GetNilThenSet(key, sync.Mutex{})
+	mutex.Lock()
+	defer mutex.Unlock()
+	v, ok := m.clients.Get(key)
 	if !ok {
 		return
 	}
 	v.RemoveSSHListener(wsKey)
-	if v.LenListener() == 0 {
+	if v.Empty() {
 		m.deleteSSH(v.Key, v)
 		log.Printf("ssh client delete %s", v.Key)
 	}
 }
 
-func (m *SSHManager) RegisterRoughListener(port int, host string, user string, passwd string, wsKey string, listener func(m RoughMessage)) error {
+func (m *Manager) RegisterRoughListener(port int, host string, user string, passwd string, wsKey string, listener func(m RoughMessage)) error {
+	key := generalKey(port, host, user)
+	mutex := m.mutexes.GetNilThenSet(key, sync.Mutex{})
+	mutex.Lock()
+	defer mutex.Unlock()
 	s, err := m.getSSH(port, host, user, passwd)
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
 	if err != nil {
 		return err
 	}
@@ -87,28 +101,31 @@ func (m *SSHManager) RegisterRoughListener(port int, host string, user string, p
 	return nil
 }
 
-func (m *SSHManager) RemoveRoughListener(port int, host string, user string, wsKey string) {
-	sshKey := generalKey(port, host, user)
-	v, ok := m.sshMap[sshKey]
+func (m *Manager) RemoveRoughListener(port int, host string, user string, wsKey string) {
+	key := generalKey(port, host, user)
+	mutex := m.mutexes.GetNilThenSet(key, sync.Mutex{})
+	mutex.Lock()
+	defer mutex.Unlock()
+	v, ok := m.clients.Get(key)
 	if !ok {
 		return
 	}
 	v.RemoveRoughListener(wsKey)
-	if v.LenListener() == 0 {
+	if v.Empty() {
 		m.deleteSSH(v.Key, v)
 		log.Printf("ssh client delete %s", v.Key)
 	}
 }
 
-func (m *SSHManager) ClearListener(wsKey string) {
-	for _, v := range m.sshMap {
+func (m *Manager) ClearListener(wsKey string) {
+	m.clients.Each(func(_ string, v *SSH) {
 		v.RemoveSSHListener(wsKey)
 		v.RemoveRoughListener(wsKey)
-		if v.LenListener() == 0 {
+		if v.Empty() {
 			m.deleteSSH(v.Key, v)
 			log.Printf("ssh client delete %s", v.Key)
 		}
-	}
+	})
 }
 
 type myWriter struct {
@@ -143,7 +160,7 @@ func (w myReader) Read(p []byte) (int, error) {
 	return len(data), nil
 }
 
-func (m *SSHManager) NewSSHClientWithConn(port int, host string, user string, passwd string, conn *websocket.Conn, mutex *sync.Mutex) (bool, error) {
+func (m *Manager) NewSSHClientWithConn(port int, host string, user string, passwd string, conn *websocket.Conn, mutex *sync.Mutex) (bool, error) {
 	c, err := newSimpleSSH(port, host, user, passwd)
 	if err != nil {
 		log.Printf("new client fail : %v", err)
