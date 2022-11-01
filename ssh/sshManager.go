@@ -56,6 +56,7 @@ func (m *Manager) deleteSSH(key string, client *SSH) {
 		client.Close()
 		m.clients.Remove(key)
 		m.mutexes.Remove(key)
+		log.Printf("ssh client delete %s", client.Key)
 	}
 }
 
@@ -84,7 +85,6 @@ func (m *Manager) RemoveSSHListener(port int, host, user, wsKey string) {
 	v.RemoveSSHListener(wsKey)
 	if v.Empty() {
 		m.deleteSSH(v.Key, v)
-		log.Printf("ssh client delete %s", v.Key)
 	}
 }
 
@@ -113,7 +113,6 @@ func (m *Manager) RemoveRoughListener(port int, host string, user string, wsKey 
 	v.RemoveRoughListener(wsKey)
 	if v.Empty() {
 		m.deleteSSH(v.Key, v)
-		log.Printf("ssh client delete %s", v.Key)
 	}
 }
 
@@ -123,7 +122,6 @@ func (m *Manager) ClearListener(wsKey string) {
 		v.RemoveRoughListener(wsKey)
 		if v.Empty() {
 			m.deleteSSH(v.Key, v)
-			log.Printf("ssh client delete %s", v.Key)
 		}
 	})
 }
