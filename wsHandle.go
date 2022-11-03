@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"ssh"
 	"strings"
+	"sync"
 	"wsocket"
 )
 
@@ -263,26 +264,36 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 			},
 			Result: make([]WSMonitorSSHResponseResult, 0),
 		}
+		m := sync.Mutex{}
+		wg := sync.WaitGroup{}
+
 		for _, p := range wsMonitorSSHRequest.Params {
-			err := ssh.M.RegisterRoughListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, listenerTemplate[ssh.RoughMessage](conn, "rough"))
-			result := WSMonitorSSHResponseResult{
-				Port: p.Port,
-				Host: p.Host,
-				User: p.User,
-			}
-			if err == nil {
-				result.Monitor = true
-				result.Error = nil
-			} else {
-				errText := err.Error()
-				result.Monitor = false
-				result.Error = &ResponseError{
-					Code:    400,
-					Message: errText,
+			wg.Add(1)
+			go func(port int, host string, user string, passwd string) {
+				err := ssh.M.RegisterRoughListener(port, host, user, passwd, conn.Key, listenerTemplate[ssh.RoughMessage](conn, "rough"))
+				result := WSMonitorSSHResponseResult{
+					Port: port,
+					Host: host,
+					User: user,
 				}
-			}
-			wsMonitorSSHResponse.Result = append(wsMonitorSSHResponse.Result, result)
+				if err == nil {
+					result.Monitor = true
+					result.Error = nil
+				} else {
+					errText := err.Error()
+					result.Monitor = false
+					result.Error = &ResponseError{
+						Code:    400,
+						Message: errText,
+					}
+				}
+				m.Lock()
+				wsMonitorSSHResponse.Result = append(wsMonitorSSHResponse.Result, result)
+				m.Unlock()
+				wg.Done()
+			}(p.Port, p.Host, p.User, p.Passwd)
 		}
+		wg.Wait()
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsMonitorSSHResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
 		}
@@ -326,25 +337,34 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 			},
 			Result: make([]WSMonitorSSHResponseResult, 0),
 		}
+		m := sync.Mutex{}
+		wg := sync.WaitGroup{}
+
 		for _, p := range wsMonitorSSHRequest.Params {
-			err := ssh.M.RegisterSSHListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, getSSHListener(conn))
-			result := WSMonitorSSHResponseResult{
-				Port: p.Port,
-				Host: p.Host,
-				User: p.User,
-			}
-			if err == nil {
-				result.Monitor = true
-				result.Error = nil
-			} else {
-				errText := err.Error()
-				result.Monitor = false
-				result.Error = &ResponseError{
-					Code:    400,
-					Message: errText,
+			wg.Add(1)
+			go func(port int, host string, user string, passwd string) {
+				err := ssh.M.RegisterSSHListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, getSSHListener(conn))
+				result := WSMonitorSSHResponseResult{
+					Port: p.Port,
+					Host: p.Host,
+					User: p.User,
 				}
-			}
-			wsMonitorSSHResponse.Result = append(wsMonitorSSHResponse.Result, result)
+				if err == nil {
+					result.Monitor = true
+					result.Error = nil
+				} else {
+					errText := err.Error()
+					result.Monitor = false
+					result.Error = &ResponseError{
+						Code:    400,
+						Message: errText,
+					}
+				}
+				m.Lock()
+				wsMonitorSSHResponse.Result = append(wsMonitorSSHResponse.Result, result)
+				m.Unlock()
+				wg.Done()
+			}(p.Port, p.Host, p.User, p.Passwd)
 		}
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsMonitorSSHResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
