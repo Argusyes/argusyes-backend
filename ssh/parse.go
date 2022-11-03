@@ -33,7 +33,7 @@ type Parser struct {
 	Memory struct {
 		FreeMemOccupy      float64
 		AvailableMemOccupy float64
-		SwapFreeOccupy     float64
+		SwapOccupy         float64
 	}
 	Net struct {
 		UpBytesH       float64
@@ -78,7 +78,7 @@ func (p *Parser) parseRoughMessage(port int, host, user string) *RoughMessage {
 		Memory: RoughMemory{
 			FreeMemOccupy:      p.Memory.FreeMemOccupy,
 			AvailableMemOccupy: p.Memory.AvailableMemOccupy,
-			SwapFreeOccupy:     p.Memory.SwapFreeOccupy,
+			SwapFreeOccupy:     p.Memory.SwapOccupy,
 		},
 		Net: RoughNet{
 			UpBytesH:       p.Net.UpBytesH,
@@ -575,7 +575,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerform
 			}
 			m.Memory.SwapFree, m.Memory.SwapFreeUnit = roundMem(t * 1024)
 			m.Memory.SwapFreeOccupy = roundFloat(float64(t)/float64(SwapTotal), 2)
-			p.Memory.SwapFreeOccupy = m.Memory.SwapFreeOccupy
+			p.Memory.SwapOccupy = 1 - m.Memory.SwapFreeOccupy
 		}
 	}
 
