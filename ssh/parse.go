@@ -341,6 +341,9 @@ func (p *Parser) parseCPUPerformanceMessage(c *MonitorContext) *CPUPerformanceMe
 		}
 	}
 	diff := float64(newTotalCPUTime - oldTotalCPUTime)
+	if diff == 0 {
+		diff++
+	}
 	newUtilization, ok := parseInt64(newResult[0][5])
 	if !ok {
 		return nil
@@ -408,6 +411,9 @@ func (p *Parser) parseCPUPerformanceMessage(c *MonitorContext) *CPUPerformanceMe
 			}
 		}
 		pDiff := float64(pNewTotalCPUTime - pOldTotalCPUTime)
+		if pDiff == 0 {
+			pDiff++
+		}
 		newPUtilization, ok := parseInt64(newResult[i][5])
 		if !ok {
 			return nil
@@ -490,6 +496,9 @@ func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerform
 		return nil
 	}
 	m.Memory.TotalMem, m.Memory.TotalMemUnit = roundMem(TotalMem * 1024)
+	if TotalMem == 0 {
+		TotalMem++
+	}
 
 	SwapTotalReg := regexp.MustCompile(`SwapTotal:\D+(\d+) kB\n`)
 	if SwapTotalReg == nil {
@@ -505,7 +514,9 @@ func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerform
 		return nil
 	}
 	m.Memory.SwapTotal, m.Memory.SwapTotalUnit = roundMem(SwapTotal * 1024)
-
+	if SwapTotal == 0 {
+		SwapTotal++
+	}
 	lines := strings.Split(c.newS, "\n")
 	for _, line := range lines {
 		if !strings.Contains(line, ":") {
@@ -749,6 +760,9 @@ func (p *Parser) parseNetDevMessage(c *MonitorContext) *NetDevMessage {
 	oldTotalUpBytes := int64(0)
 	oldTotalDownBytes := int64(0)
 	difTime := c.newTime.Sub(c.oldTime).Milliseconds()
+	if difTime == 0 {
+		difTime++
+	}
 	for _, ss := range newResult {
 		name := strings.TrimSpace(ss[1])
 		oldSS, ok := oldMap[name]
@@ -870,8 +884,9 @@ func (p *Parser) parseNetStatMessage(c *MonitorContext) *NetStatMessage {
 	if m.NetTCP.ReTransSegments, ok = parseInt64(TCPRegResults[0][11]); !ok {
 		return nil
 	}
-	m.NetTCP.ReTransRate = roundFloat(float64(m.NetTCP.ReTransSegments)/float64(m.NetTCP.OutSegments), 2)
-
+	if m.NetTCP.OutSegments != 0 {
+		m.NetTCP.ReTransRate = roundFloat(float64(m.NetTCP.ReTransSegments)/float64(m.NetTCP.OutSegments), 2)
+	}
 	if m.NetUDP.InDatagrams, ok = parseInt64(UDPRegResults[0][1]); !ok {
 		return nil
 	}
@@ -966,6 +981,9 @@ func (p *Parser) parseDiskMessage(c *MonitorContext) *DiskMessage {
 	oldDiskRegResults := DiskReg.FindAllStringSubmatch(c.oldS, -1)
 	newDiskRegResults := DiskReg.FindAllStringSubmatch(c.newS, -1)
 	diff := c.newTime.Sub(c.oldTime).Milliseconds()
+	if diff == 0 {
+		diff++
+	}
 	if oldDiskRegResults == nil || newDiskRegResults == nil {
 		log.Printf("parse disk fail")
 		return nil
@@ -1019,7 +1037,9 @@ func (p *Parser) parseDiskMessage(c *MonitorContext) *DiskMessage {
 		free := int64(stat.Bfree * stat.Bsize)
 		d.Free, d.FreeUnit = roundMem(free)
 		d.Total, d.TotalUnit = roundMem(total)
-		d.FreeRate = roundFloat(float64(free)/float64(total), 2)
+		if total != 0 {
+			d.FreeRate = roundFloat(float64(free)/float64(total), 2)
+		}
 
 		oldWriteSector, ok := parseInt64(oldSS[10])
 		if !ok {
@@ -1191,6 +1211,9 @@ func (p *Parser) parseProcessMessage(c *MonitorContext) *ProcessMessage {
 		}
 	}
 	cpuTimeDiff := newTotalCPUTime - oldTotalCPUTime
+	if cpuTimeDiff == 0 {
+		cpuTimeDiff++
+	}
 
 	statReg := regexp.MustCompile(`^\s*(\d+)\s+(\S+)\s+(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d-]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+).*\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)$`)
 	if statReg == nil {
