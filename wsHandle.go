@@ -343,11 +343,11 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 		for _, p := range wsMonitorSSHRequest.Params {
 			wg.Add(1)
 			go func(port int, host string, user string, passwd string) {
-				err := ssh.M.RegisterSSHListener(p.Port, p.Host, p.User, p.Passwd, conn.Key, getSSHListener(conn))
+				err := ssh.M.RegisterSSHListener(port, host, user, passwd, conn.Key, getSSHListener(conn))
 				result := WSMonitorSSHResponseResult{
-					Port: p.Port,
-					Host: p.Host,
-					User: p.User,
+					Port: port,
+					Host: host,
+					User: user,
 				}
 				if err == nil {
 					result.Monitor = true
