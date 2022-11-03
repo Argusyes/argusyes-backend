@@ -366,6 +366,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 				wg.Done()
 			}(p.Port, p.Host, p.User, p.Passwd)
 		}
+		wg.Wait()
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsMonitorSSHResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
 		}

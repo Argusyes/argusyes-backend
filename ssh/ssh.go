@@ -39,7 +39,7 @@ type SSH struct {
 
 func newSimpleSSH(port int, host, user, passwd string) (*ssh.Client, error) {
 	config := &ssh.ClientConfig{
-		Timeout:         time.Second,
+		Timeout:         time.Millisecond * 800,
 		User:            user,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Auth:            []ssh.AuthMethod{ssh.Password(passwd)},
