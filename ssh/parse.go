@@ -1339,7 +1339,9 @@ func roundSpeed(b int64) (float64, string) {
 }
 
 func roundMem(b int64) (float64, string) {
-	if b > 1024*1024*1024 {
+	if b > 1024*1024*1024*1024 {
+		return roundFloat(float64(b)/1024/1024/1024/1024, 2), "TB"
+	} else if b > 1024*1024*1024 {
 		return roundFloat(float64(b)/1024/1024/1024, 2), "GB"
 	} else if b > 1024*1024 {
 		return roundFloat(float64(b)/1024/1024, 2), "MB"
