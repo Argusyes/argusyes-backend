@@ -556,14 +556,14 @@ func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerform
 				return nil
 			}
 			m.Memory.SwapCached, m.Memory.SwapCachedUnit = roundMem(t * 1024)
-			m.Memory.SwapCachedOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
+			m.Memory.SwapCachedOccupy = roundFloat(float64(t)/float64(SwapTotal), 2)
 		} else if strings.HasPrefix(line, "SwapFree:") {
 			t, ok := parseInt64(number)
 			if !ok {
 				return nil
 			}
 			m.Memory.SwapFree, m.Memory.SwapFreeUnit = roundMem(t * 1024)
-			m.Memory.SwapFreeOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
+			m.Memory.SwapFreeOccupy = roundFloat(float64(t)/float64(SwapTotal), 2)
 			p.Memory.SwapFreeOccupy = m.Memory.SwapFreeOccupy
 		}
 	}
