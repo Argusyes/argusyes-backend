@@ -808,8 +808,8 @@ func (p *Parser) parseNetDevMessage(c *MonitorContext) *NetDevMessage {
 		if !ok {
 			continue
 		}
-		n.UpSpeed, n.UpSpeedUnit = roundSpeed((n.UpBytes - oldUpBytes) * 1000 / difTime)
-		n.DownSpeed, n.DownSpeedUnit = roundSpeed((n.DownBytes - oldDownBytes) * 1000 / difTime)
+		n.UpSpeed, n.UpSpeedUnit = roundMem((n.UpBytes - oldUpBytes) * 1000 / difTime)
+		n.DownSpeed, n.DownSpeedUnit = roundMem((n.DownBytes - oldDownBytes) * 1000 / difTime)
 
 		if !n.Virtual {
 			m.NetDevTotal.UpBytes += n.UpBytes
@@ -823,8 +823,8 @@ func (p *Parser) parseNetDevMessage(c *MonitorContext) *NetDevMessage {
 	}
 	m.NetDevTotal.UpBytesH, m.NetDevTotal.UpBytesHUnit = roundMem(m.NetDevTotal.UpBytes)
 	m.NetDevTotal.DownBytesH, m.NetDevTotal.DownBytesHUnit = roundMem(m.NetDevTotal.DownBytes)
-	m.NetDevTotal.UpSpeed, m.NetDevTotal.UpSpeedUnit = roundSpeed((m.NetDevTotal.UpBytes - oldTotalUpBytes) * 1000 / difTime)
-	m.NetDevTotal.DownSpeed, m.NetDevTotal.DownSpeedUnit = roundSpeed((m.NetDevTotal.DownBytes - oldTotalDownBytes) * 1000 / difTime)
+	m.NetDevTotal.UpSpeed, m.NetDevTotal.UpSpeedUnit = roundMem((m.NetDevTotal.UpBytes - oldTotalUpBytes) * 1000 / difTime)
+	m.NetDevTotal.DownSpeed, m.NetDevTotal.DownSpeedUnit = roundMem((m.NetDevTotal.DownBytes - oldTotalDownBytes) * 1000 / difTime)
 	p.Net.UpSpeed, p.Net.UpSpeedUnit = m.NetDevTotal.UpSpeed, m.NetDevTotal.UpSpeedUnit
 	p.Net.DownSpeed, p.Net.DownSpeedUnit = m.NetDevTotal.DownSpeed, m.NetDevTotal.DownSpeedUnit
 	p.Net.UpBytesH, p.Net.UpBytesHUnit = m.NetDevTotal.UpBytesH, m.NetDevTotal.UpBytesHUnit
@@ -1052,7 +1052,7 @@ func (p *Parser) parseDiskMessage(c *MonitorContext) *DiskMessage {
 		}
 		newWrite := SectorSize * newWriteSector
 		d.Write, d.WriteUnit = roundMem(newWrite)
-		d.WriteRate, d.WriteRateUnit = roundSpeed((newWrite - oldWrite) * 1000 / diff)
+		d.WriteRate, d.WriteRateUnit = roundMem((newWrite - oldWrite) * 1000 / diff)
 		oldReadSector, ok := parseInt64(oldSS[6])
 		if !ok {
 			continue
@@ -1064,7 +1064,7 @@ func (p *Parser) parseDiskMessage(c *MonitorContext) *DiskMessage {
 		}
 		newRead := SectorSize * newReadSector
 		d.Read, d.ReadUnit = roundMem(newRead)
-		d.ReadRate, d.ReadRateUnit = roundSpeed((newRead - oldRead) * 1000 / diff)
+		d.ReadRate, d.ReadRateUnit = roundMem((newRead - oldRead) * 1000 / diff)
 
 		OldTotalWrite += oldWrite
 		OldTotalRead += oldRead
@@ -1094,8 +1094,8 @@ func (p *Parser) parseDiskMessage(c *MonitorContext) *DiskMessage {
 	}
 	m.Write, m.WriteUnit = roundMem(NewTotalWrite)
 	m.Read, m.ReadUnit = roundMem(NewTotalRead)
-	m.WriteRate, m.WriteRateUnit = roundSpeed((NewTotalWrite - OldTotalWrite) * 1000 / diff)
-	m.ReadRate, m.ReadRateUnit = roundSpeed((NewTotalRead - OldTotalRead) * 1000 / diff)
+	m.WriteRate, m.WriteRateUnit = roundMem((NewTotalWrite - OldTotalWrite) * 1000 / diff)
+	m.ReadRate, m.ReadRateUnit = roundMem((NewTotalRead - OldTotalRead) * 1000 / diff)
 	p.Disk.Write, p.Disk.WriteUnit = m.Write, m.WriteUnit
 	p.Disk.Read, p.Disk.ReadUnit = m.Read, m.ReadUnit
 	p.Disk.WriteRate, p.Disk.WriteRateUnit = m.WriteRate, m.WriteRateUnit
@@ -1331,11 +1331,6 @@ func parseFloat64(s string) (float64, bool) {
 		return 0, false
 	}
 	return parseFloat, true
-}
-
-func roundSpeed(b int64) (float64, string) {
-	speed, unit := roundMem(b)
-	return speed, unit + "/s"
 }
 
 func roundMem(b int64) (float64, string) {
