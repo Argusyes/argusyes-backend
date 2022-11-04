@@ -1290,11 +1290,12 @@ func (p *Parser) parseProcessMessage(c *MonitorContext) *ProcessMessage {
 			continue
 		}
 		oldProcessTotalTime := oldUtime + oldStime + oldCutime + oldCstime
-		process.CPU = roundFloat((float64(processTotalTime)-float64(oldProcessTotalTime))/float64(cpuTimeDiff), 2)
+		process.CPU = roundFloat(100*(float64(processTotalTime)-float64(oldProcessTotalTime))/float64(cpuTimeDiff), 2)
 		mem, ok := parseInt64(ss[len(ss)-5])
 		if !ok {
 			continue
 		}
+		process.MemRaw = mem * 4096
 		process.Mem, process.MemUnit = roundMem(mem * 4096)
 		if process.CPU > 0 || process.Mem > 0 {
 			m.Process = append(m.Process, process)
