@@ -59,9 +59,14 @@ func (m *MutexMap[T]) Has(key string) bool {
 }
 
 func (m *MutexMap[T]) Each(f func(key string, v T)) {
+	c := make(map[string]T, 0)
 	m.RLock()
-	defer m.RUnlock()
 	for key, val := range m.mp {
+		c[key] = val
+	}
+	m.RUnlock()
+
+	for key, val := range c {
 		f(key, val)
 	}
 }

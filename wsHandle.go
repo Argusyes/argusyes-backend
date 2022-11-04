@@ -291,11 +291,13 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 				wsMonitorSSHResponse.Result = append(wsMonitorSSHResponse.Result, result)
 				m.Unlock()
 				wg.Done()
+				log.Printf("rough done %d %s %s", port, host, user)
 			}(p.Port, p.Host, p.User, p.Passwd)
 		}
 		wg.Wait()
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsMonitorSSHResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
+			log.Printf("send to wsocket %s", string(wsResponseBytes))
 		}
 
 	case "ssh.stopRoughMonitor":
@@ -323,6 +325,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 		}
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsUnMonitorSSHResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
+			log.Printf("send to wsocket %s", string(wsResponseBytes))
 		}
 	case "ssh.startMonitor":
 		log.Printf("%s handle ssh.startMonitior", conn.Key)
@@ -364,11 +367,13 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 				wsMonitorSSHResponse.Result = append(wsMonitorSSHResponse.Result, result)
 				m.Unlock()
 				wg.Done()
+				log.Printf("done %d %s %s", port, host, user)
 			}(p.Port, p.Host, p.User, p.Passwd)
 		}
 		wg.Wait()
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsMonitorSSHResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
+			log.Printf("send to wsocket %s", string(wsResponseBytes))
 		}
 	case "ssh.stopMonitor":
 		wsUnMonitorSSHRequest := &WSUnMonitorSSHRequest{}
@@ -395,6 +400,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 		}
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsUnMonitorSSHResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
+			log.Printf("send to wsocket %s", string(wsResponseBytes))
 		}
 	}
 }

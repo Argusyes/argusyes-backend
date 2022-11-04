@@ -10,7 +10,9 @@ import (
 	"log"
 	"mongoDB"
 	"net/http"
+	_ "net/http/pprof"
 	"net/url"
+	"runtime"
 	"ssh"
 	"strings"
 	"wsocket"
@@ -26,6 +28,12 @@ func init() {
 }
 
 func main() {
+	go func() {
+		runtime.SetBlockProfileRate(1)
+		runtime.SetMutexProfileFraction(1)
+		log.Println(http.ListenAndServe(":6060", nil))
+	}()
+
 	defer mongoDB.Client.Close()
 
 	conf, err := toml.LoadFile("./conf.toml")

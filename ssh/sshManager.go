@@ -30,9 +30,6 @@ func newManager() *Manager {
 
 func (m *Manager) getSSH(port int, host, user, passwd string) (*SSH, error) {
 	key := generalKey(port, host, user)
-	mutex := m.mutexes.GetNilThenSet(key, sync.Mutex{})
-	mutex.Lock()
-	defer mutex.Unlock()
 	c, ok := m.clients.Get(key)
 
 	if ok {
@@ -49,9 +46,6 @@ func (m *Manager) getSSH(port int, host, user, passwd string) (*SSH, error) {
 }
 
 func (m *Manager) deleteSSH(key string, client *SSH) {
-	mutex := m.mutexes.GetNilThenSet(key, sync.Mutex{})
-	mutex.Lock()
-	defer mutex.Unlock()
 	if client.Empty() {
 		client.Close()
 		m.clients.Remove(key)
@@ -118,11 +112,15 @@ func (m *Manager) RemoveRoughListener(port int, host string, user string, wsKey 
 
 func (m *Manager) ClearListener(wsKey string) {
 	m.clients.Each(func(_ string, v *SSH) {
+		mutex := m.mutexes.GetNilThenSet(v.Key, sync.Mutex{})
+		mutex.Lock()
 		v.RemoveSSHListener(wsKey)
 		v.RemoveRoughListener(wsKey)
 		if v.Empty() {
 			m.deleteSSH(v.Key, v)
 		}
+		mutex.Unlock()
+		log.Printf("done clear die wsocket handler in ssh %s", v.Key)
 	})
 }
 
