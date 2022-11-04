@@ -1291,7 +1291,7 @@ func (p *Parser) parseProcessMessage(c *MonitorContext) *ProcessMessage {
 		}
 		oldProcessTotalTime := oldUtime + oldStime + oldCutime + oldCstime
 		process.CPU = roundFloat(float64(p.CPU.CPUProcessorNum)*100*(float64(processTotalTime)-float64(oldProcessTotalTime))/float64(cpuTimeDiff), 2)
-		mem, ok := parseInt64(ss[len(ss)-5])
+		mem, ok := parseInt64(ss[len(ss)-6])
 		if !ok {
 			continue
 		}
