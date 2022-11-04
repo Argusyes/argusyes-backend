@@ -643,8 +643,8 @@ func (p *Parser) parseLoadavgMessage(c *MonitorContext) *LoadavgMessage {
 	if m.Loadavg.LastPid, ok = parseInt64(ss[4]); !ok {
 		return nil
 	}
-	p.Loadavg.OneOccupy = m.Loadavg.One
-	p.Loadavg.FiveOccupy = m.Loadavg.Five
+	p.Loadavg.OneOccupy = m.Loadavg.OneOccupy
+	p.Loadavg.FiveOccupy = m.Loadavg.FiveOccupy
 	p.Loadavg.FifteenOccupy = m.Loadavg.FifteenOccupy
 	return m
 }
