@@ -254,11 +254,14 @@ type Disk struct {
 	DevName       string  `json:"devName"`
 	Mount         string  `json:"mount"`
 	FileSystem    string  `json:"fileSystem"`
+	FreeRate      float64 `json:"freeRate"`
 	Free          float64 `json:"free"`
 	FreeUnit      string  `json:"freeUnit"`
+	UsedRate      float64 `json:"usedRate"`
+	Used          float64 `json:"used"`
+	UsedUnit      string  `json:"usedUnit"`
 	Total         float64 `json:"total"`
 	TotalUnit     string  `json:"totalUnit"`
-	FreeRate      float64 `json:"freeRate"`
 	Write         float64 `json:"write"`
 	WriteUnit     string  `json:"writeUnit"`
 	Read          float64 `json:"read"`

@@ -1038,10 +1038,13 @@ func (p *Parser) parseDiskMessage(c *MonitorContext) *DiskMessage {
 
 		total := int64(stat.Blocks * stat.Bsize)
 		free := int64(stat.Bfree * stat.Bsize)
+		used := total - free
 		d.Free, d.FreeUnit = roundMem(free)
+		d.Used, d.UsedUnit = roundMem(used)
 		d.Total, d.TotalUnit = roundMem(total)
 		if total != 0 {
 			d.FreeRate = roundFloat(float64(free)/float64(total), 2)
+			d.UsedRate = roundFloat(float64(used)/float64(total), 2)
 		}
 
 		oldWriteSector, ok := parseInt64(oldSS[10])
