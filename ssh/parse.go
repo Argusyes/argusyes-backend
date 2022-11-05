@@ -31,9 +31,9 @@ type Parser struct {
 		FifteenOccupy float64
 	}
 	Memory struct {
-		FreeMemOccupy      float64
-		AvailableMemOccupy float64
-		CachedSwapOccupy   float64
+		FreeMemOccupy    float64
+		UsedMemOccupy    float64
+		CachedSwapOccupy float64
 	}
 	Net struct {
 		UpBytesH       float64
@@ -76,9 +76,9 @@ func (p *Parser) parseRoughMessage(port int, host, user string) *RoughMessage {
 			FifteenOccupy: p.Loadavg.FifteenOccupy,
 		},
 		Memory: RoughMemory{
-			FreeMemOccupy:      p.Memory.FreeMemOccupy,
-			AvailableMemOccupy: p.Memory.AvailableMemOccupy,
-			CacheSwapOccupy:    p.Memory.CachedSwapOccupy,
+			FreeMemOccupy:   p.Memory.FreeMemOccupy,
+			UsedMemOccupy:   p.Memory.UsedMemOccupy,
+			CacheSwapOccupy: p.Memory.CachedSwapOccupy,
 		},
 		Net: RoughNet{
 			UpBytesH:       p.Net.UpBytesH,
@@ -538,10 +538,9 @@ func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerform
 			if !ok {
 				return nil
 			}
-			UsedMem -= t
+			UsedMem = TotalMem - t
 			m.Memory.AvailableMem, m.Memory.AvailableMemUnit = roundMem(t * 1024)
 			m.Memory.AvailableMemOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
-			p.Memory.AvailableMemOccupy = m.Memory.AvailableMemOccupy
 		} else if strings.HasPrefix(line, "Buffers:") {
 			t, ok := parseInt64(number)
 			if !ok {
@@ -582,6 +581,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerform
 	}
 	m.Memory.UsedMem, m.Memory.UsedMemUnit = roundMem(UsedMem * 1024)
 	m.Memory.UsedMemOccupy = roundFloat(float64(UsedMem)/float64(TotalMem), 2)
+	p.Memory.UsedMemOccupy = m.Memory.UsedMemOccupy
 	return m
 }
 

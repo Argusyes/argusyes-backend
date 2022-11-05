@@ -326,9 +326,9 @@ type RoughLoadavg struct {
 }
 
 type RoughMemory struct {
-	FreeMemOccupy      float64 `json:"freeMemOccupy"`
-	AvailableMemOccupy float64 `json:"availableMemOccupy"`
-	CacheSwapOccupy    float64 `json:"cacheSwapOccupy"`
+	FreeMemOccupy   float64 `json:"freeMemOccupy"`
+	UsedMemOccupy   float64 `json:"usedMemOccupy"`
+	CacheSwapOccupy float64 `json:"cacheSwapOccupy"`
 }
 
 type RoughNet struct {
