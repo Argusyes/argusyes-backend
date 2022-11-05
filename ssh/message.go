@@ -106,6 +106,11 @@ type MemoryPerformance struct {
 	// 可用
 	AvailableMem     float64 `json:"availableMem"`
 	AvailableMemUnit string  `json:"availableMemUnit"`
+	// 已用占比
+	UsedMemOccupy float64 `json:"usedMemOccupy"`
+	// 已用
+	UsedMem     float64 `json:"usedMem"`
+	UsedMemUnit string  `json:"usedMemUnit"`
 	// 块设备缓存占比
 	BufferOccupy float64 `json:"bufferOccupy"`
 	// 块设备缓存
@@ -122,18 +127,18 @@ type MemoryPerformance struct {
 	Dirty     float64 `json:"dirty"`
 	DirtyUnit string  `json:"dirtyUnit"`
 	// 交换总内存
-	SwapTotal     float64 `json:"swapTotal"`
-	SwapTotalUnit string  `json:"swapTotalUnit"`
+	TotalSwap     float64 `json:"totalSwap"`
+	TotalSwapUnit string  `json:"totalSwapUnit"`
 	// 交换可用占比
-	SwapFreeOccupy float64 `json:"swapFreeOccupy"`
+	FreeSwapOccupy float64 `json:"freeSwapOccupy"`
 	// 交换可用内存
-	SwapFree     float64 `json:"swapFree"`
-	SwapFreeUnit string  `json:"swapFreeUnit"`
+	FreeSwap     float64 `json:"freeSwap"`
+	FreeSwapUnit string  `json:"freeSwapUnit"`
 	// 交换文件缓存占比
-	SwapCachedOccupy float64 `json:"swapCachedOccupy"`
+	CachedSwapOccupy float64 `json:"cachedSwapOccupy"`
 	// 交换文件缓存
-	SwapCached     float64 `json:"swapCached"`
-	SwapCachedUnit string  `json:"swapCachedUnit"`
+	CachedSwap     float64 `json:"cachedSwap"`
+	CachedSwapUnit string  `json:"cachedSwapUnit"`
 }
 
 type UptimeMessage struct {
@@ -323,7 +328,7 @@ type RoughLoadavg struct {
 type RoughMemory struct {
 	FreeMemOccupy      float64 `json:"freeMemOccupy"`
 	AvailableMemOccupy float64 `json:"availableMemOccupy"`
-	SwapFreeOccupy     float64 `json:"swapFreeOccupy"`
+	CacheSwapOccupy    float64 `json:"cacheSwapOccupy"`
 }
 
 type RoughNet struct {

@@ -33,7 +33,7 @@ type Parser struct {
 	Memory struct {
 		FreeMemOccupy      float64
 		AvailableMemOccupy float64
-		SwapOccupy         float64
+		CachedSwapOccupy   float64
 	}
 	Net struct {
 		UpBytesH       float64
@@ -78,7 +78,7 @@ func (p *Parser) parseRoughMessage(port int, host, user string) *RoughMessage {
 		Memory: RoughMemory{
 			FreeMemOccupy:      p.Memory.FreeMemOccupy,
 			AvailableMemOccupy: p.Memory.AvailableMemOccupy,
-			SwapFreeOccupy:     p.Memory.SwapOccupy,
+			CacheSwapOccupy:    p.Memory.CachedSwapOccupy,
 		},
 		Net: RoughNet{
 			UpBytesH:       p.Net.UpBytesH,
@@ -513,10 +513,11 @@ func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerform
 	if !ok {
 		return nil
 	}
-	m.Memory.SwapTotal, m.Memory.SwapTotalUnit = roundMem(SwapTotal * 1024)
+	m.Memory.TotalSwap, m.Memory.TotalSwapUnit = roundMem(SwapTotal * 1024)
 	if SwapTotal == 0 {
 		SwapTotal++
 	}
+	UsedMem := int64(0)
 	lines := strings.Split(c.newS, "\n")
 	for _, line := range lines {
 		if !strings.Contains(line, ":") {
@@ -537,6 +538,7 @@ func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerform
 			if !ok {
 				return nil
 			}
+			UsedMem -= t
 			m.Memory.AvailableMem, m.Memory.AvailableMemUnit = roundMem(t * 1024)
 			m.Memory.AvailableMemOccupy = roundFloat(float64(t)/float64(TotalMem), 2)
 			p.Memory.AvailableMemOccupy = m.Memory.AvailableMemOccupy
@@ -566,19 +568,20 @@ func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerform
 			if !ok {
 				return nil
 			}
-			m.Memory.SwapCached, m.Memory.SwapCachedUnit = roundMem(t * 1024)
-			m.Memory.SwapCachedOccupy = roundFloat(float64(t)/float64(SwapTotal), 2)
+			m.Memory.CachedSwap, m.Memory.CachedSwapUnit = roundMem(t * 1024)
+			m.Memory.CachedSwapOccupy = roundFloat(float64(t)/float64(SwapTotal), 2)
+			p.Memory.CachedSwapOccupy = m.Memory.CachedSwapOccupy
 		} else if strings.HasPrefix(line, "SwapFree:") {
 			t, ok := parseInt64(number)
 			if !ok {
 				return nil
 			}
-			m.Memory.SwapFree, m.Memory.SwapFreeUnit = roundMem(t * 1024)
-			m.Memory.SwapFreeOccupy = roundFloat(float64(t)/float64(SwapTotal), 2)
-			p.Memory.SwapOccupy = 1 - m.Memory.SwapFreeOccupy
+			m.Memory.FreeSwap, m.Memory.FreeSwapUnit = roundMem(t * 1024)
+			m.Memory.FreeSwapOccupy = roundFloat(float64(t)/float64(SwapTotal), 2)
 		}
 	}
-
+	m.Memory.UsedMem, m.Memory.UsedMemUnit = roundMem(UsedMem * 1024)
+	m.Memory.UsedMemOccupy = roundFloat(float64(UsedMem)/float64(TotalMem), 2)
 	return m
 }
 
