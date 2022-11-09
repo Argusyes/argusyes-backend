@@ -875,20 +875,20 @@ func (p *Parser) parseNetStatMessage(c *MonitorContext) *NetStatMessage {
 	if m.NetTCP.FailOpens, ok = parseInt64(TCPRegResults[0][7]); !ok {
 		return nil
 	}
-	if m.NetTCP.CurrConn, ok = parseInt64(TCPRegResults[0][8]); !ok {
+	if m.NetTCP.CurrConn, ok = parseInt64(TCPRegResults[0][9]); !ok {
 		return nil
 	}
-	if m.NetTCP.InSegments, ok = parseInt64(TCPRegResults[0][9]); !ok {
+	if m.NetTCP.InSegments, ok = parseInt64(TCPRegResults[0][10]); !ok {
 		return nil
 	}
-	if m.NetTCP.OutSegments, ok = parseInt64(TCPRegResults[0][10]); !ok {
+	if m.NetTCP.OutSegments, ok = parseInt64(TCPRegResults[0][11]); !ok {
 		return nil
 	}
-	if m.NetTCP.ReTransSegments, ok = parseInt64(TCPRegResults[0][11]); !ok {
+	if m.NetTCP.ReTransSegments, ok = parseInt64(TCPRegResults[0][12]); !ok {
 		return nil
 	}
 	if m.NetTCP.OutSegments != 0 {
-		m.NetTCP.ReTransRate = roundFloat(float64(m.NetTCP.ReTransSegments)/float64(m.NetTCP.OutSegments), 2)
+		m.NetTCP.ReTransRate = roundFloat(100 * float64(m.NetTCP.ReTransSegments)/float64(m.NetTCP.OutSegments), 2)
 	}
 	if m.NetUDP.InDatagrams, ok = parseInt64(UDPRegResults[0][1]); !ok {
 		return nil
