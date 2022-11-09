@@ -2,7 +2,7 @@ package ssh
 
 import (
 	"github.com/pkg/sftp"
-	"log"
+	"logger"
 	"mutexMap"
 	"sync"
 	"time"
@@ -70,7 +70,7 @@ func (c *Client[M]) monitor(h *SSH, f func(context *MonitorContext) *M, second i
 				h.wg.Done()
 				return
 			} else {
-				log.Printf("Unexpect recv %d", s)
+				logger.L.Debugf("Unexpect recv %d", s)
 			}
 		default:
 			m := f(context)

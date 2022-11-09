@@ -3,6 +3,7 @@ module argus
 go 1.19
 
 replace (
+	logger => ./logger
 	mongoDB => ./mongoDB
 	mutexMap => ./mutexMap
 	ssh => ./ssh
@@ -11,7 +12,7 @@ replace (
 
 require ssh v0.0.0
 
-require mutexMap v0.0.0
+require mutexMap v0.0.0 // indirect
 
 require (
 	github.com/deckarep/golang-set/v2 v2.1.0
@@ -22,6 +23,7 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/json-iterator/go v1.1.12
 	github.com/pelletier/go-toml v1.9.5
+	logger v0.0.0
 	mongoDB v0.0.0
 	wsocket v0.0.0
 )
@@ -42,6 +44,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.0.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.5 // indirect
+	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.1 // indirect
@@ -51,8 +54,7 @@ require (
 	golang.org/x/crypto v0.0.0-20221012134737-56aed061732a // indirect
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
-	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1 // indirect
+	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

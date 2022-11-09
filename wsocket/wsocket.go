@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"log"
+	"logger"
 	"mutexMap"
 	"net/http"
 	"sync"
@@ -70,7 +70,7 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 	id := uuid.New()
 	key := fmt.Sprintf("%s:%s", conn.RemoteAddr().String(), id.String())
 	if err != nil {
-		log.Printf("websocket upgrade %s fail : %v", key, err)
+		logger.L.Debugf("websocket upgrade %s fail : %v", key, err)
 		return
 	}
 	c := &Connect{
@@ -79,7 +79,7 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 		manager: m,
 	}
 	m.websocketMap.Set(key, c)
-	log.Printf("websocket connected from : %s", key)
+	logger.L.Debugf("websocket connected from : %s", key)
 
 	m.connectHandlerMutex.Lock()
 	for _, h := range m.connectHandler {
@@ -90,9 +90,9 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		err := conn.Close()
 		if err != nil {
-			log.Printf("websocket closed : %s fail %v", key, err)
+			logger.L.Debugf("websocket closed : %s fail %v", key, err)
 		} else {
-			log.Printf("websocket closed : %s", key)
+			logger.L.Debugf("websocket closed : %s", key)
 		}
 		m.websocketMap.Remove(key)
 		m.closeHandlerMutex.Lock()
@@ -104,7 +104,7 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 	for {
 		mt, message, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("websocket %s error: %v", key, err)
+			logger.L.Debugf("websocket %s error: %v", key, err)
 			m.websocketMap.Remove(key)
 			m.errorHandlerMutex.Lock()
 			for _, h := range m.errorHandler {
@@ -115,7 +115,7 @@ func (m *Manager) HandleNewConnect(w http.ResponseWriter, r *http.Request) {
 		}
 		switch mt {
 		case websocket.TextMessage:
-			log.Printf("websocket %s recv : %s", key, message)
+			logger.L.Debugf("websocket %s recv : %s", key, message)
 			m.messageHandlerMutex.Lock()
 			for _, h := range m.messageHandler {
 				h(c, message)

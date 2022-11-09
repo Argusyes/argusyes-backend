@@ -1,8 +1,10 @@
 [mongo]
 Host="mongodb://10.112.230.222:27017"
 
-
 [server]
 IP=""
 Port=9097
 AllowOrigin="http://localhost:5173"
+
+[log]
+Level="trace"

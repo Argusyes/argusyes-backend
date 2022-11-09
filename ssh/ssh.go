@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
-	"log"
+	"logger"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,7 +13,8 @@ import (
 
 type SSH struct {
 	close                   int32
-	empty                   int32
+	closeTimer              *time.Timer
+	closeDelay              time.Duration
 	Key                     string
 	Port                    int
 	Host                    string
@@ -48,7 +49,7 @@ func newSimpleSSH(port int, host, user, passwd string) (*ssh.Client, error) {
 	sshClient, err := ssh.Dial("tcp", addr, config)
 	if err != nil {
 		errText := fmt.Sprintf("Create ssh client %s fail : %v", generalKey(port, host, user), err)
-		log.Printf(errText)
+		logger.L.Debugf(errText)
 		return nil, errors.New(errText)
 	}
 	return sshClient, nil
@@ -63,12 +64,14 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 	sftpClient, err := sftp.NewClient(sshClient)
 	if err != nil {
 		errText := fmt.Sprintf("Create sftp client %s fail : %v", generalKey(port, host, user), err)
-		log.Printf(errText)
+		logger.L.Debugf(errText)
 		_ = sshClient.Close()
 		return nil, errors.New(errText)
 	}
 
 	return &SSH{
+		closeTimer:              time.NewTimer(5 * time.Second),
+		closeDelay:              time.Second * 5,
 		Key:                     generalKey(port, host, user),
 		Port:                    port,
 		Host:                    host,
@@ -98,11 +101,11 @@ func (h *SSH) Close() {
 		h.wg.Wait()
 		err := h.sftpClient.Close()
 		if err != nil {
-			log.Printf("sftp client close fail : %v", err)
+			logger.L.Debugf("sftp client close fail : %v", err)
 		}
 		err = h.sshClient.Close()
 		if err != nil {
-			log.Printf("ssh client close fail : %v", err)
+			logger.L.Debugf("ssh client close fail : %v", err)
 		}
 	}
 }
@@ -123,17 +126,14 @@ func (h *SSH) startAllMonitor() {
 }
 
 func (h *SSH) RegisterRoughListener(key string, listener Listener[RoughMessage]) {
-	atomic.AddInt32(&h.empty, 1)
 	h.roughClient.RegisterHandler(key, listener)
 }
 
 func (h *SSH) RemoveRoughListener(key string) {
-	atomic.AddInt32(&h.empty, -1)
 	h.roughClient.RemoveHandler(key)
 }
 
 func (h *SSH) RegisterSSHListener(key string, listeners AllListener) {
-	atomic.AddInt32(&h.empty, 1)
 	if listeners.CPUInfoListener != nil {
 		h.cpuInfoClient.RegisterHandler(key, listeners.CPUInfoListener)
 	}
@@ -167,7 +167,6 @@ func (h *SSH) RegisterSSHListener(key string, listeners AllListener) {
 }
 
 func (h *SSH) RemoveSSHListener(key string) {
-	atomic.AddInt32(&h.empty, -1)
 	h.cpuInfoClient.RemoveHandler(key)
 	h.cpuPerformanceClient.RemoveHandler(key)
 	h.memoryPerformanceClient.RemoveHandler(key)
@@ -187,5 +186,5 @@ func (h *SSH) HasRoughListener(key string) bool {
 }
 
 func (h *SSH) Empty() bool {
-	return h.empty == 0
+	return h.cpuInfoClient.LenListener()+h.roughClient.LenListener() <= 0
 }

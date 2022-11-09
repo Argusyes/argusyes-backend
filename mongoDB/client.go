@@ -10,7 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"log"
+	"logger"
 	"math/rand"
 	"time"
 )
@@ -47,7 +47,7 @@ var Client *MongoClient
 func init() {
 	conf, err := toml.LoadFile("./conf.toml")
 	if err != nil {
-		log.Fatalf("Read Config File Fail %e", err)
+		logger.L.Fatalf("Read Config File Fail %e", err)
 	}
 	host := conf.Get("mongo.Host").(string)
 	clientOptions := options.Client().ApplyURI(host).SetSocketTimeout(3 * time.Second)
@@ -55,13 +55,13 @@ func init() {
 	// 连接到MongoDB
 	mgoCli, err := mongo.Connect(context.TODO(), clientOptions)
 	if err != nil {
-		log.Fatalf("connect to mongo DB fail : %v", err)
+		logger.L.Fatalf("connect to mongo DB fail : %v", err)
 	}
 
 	// 检查连接
 	err = mgoCli.Ping(context.TODO(), nil)
 	if err != nil {
-		log.Fatalf("connect to mongo DB fail : %v", err)
+		logger.L.Fatalf("connect to mongo DB fail : %v", err)
 	}
 
 	userSSHCollection := mgoCli.Database("Argusyes").Collection("UserSSH")
@@ -74,7 +74,7 @@ func init() {
 		},
 	)
 	if err != nil {
-		log.Fatalf("create index fail : %v", err)
+		logger.L.Fatalf("create index fail : %v", err)
 	}
 
 	Client = &MongoClient{
@@ -82,7 +82,7 @@ func init() {
 		userSSHCollection: userSSHCollection,
 		userCollection:    userCollection,
 	}
-	log.Println("MongoDB connect success")
+	logger.L.Traceln("MongoDB connect success")
 }
 
 func GeneralSSHId(ssh UserSSH) string {
@@ -119,9 +119,9 @@ func nextSalt() string {
 func (c *MongoClient) Close() {
 	err := c.mongoCli.Disconnect(context.TODO())
 	if err != nil {
-		log.Fatalf("Close MongoDB fail : %v", err)
+		logger.L.Fatalf("Close MongoDB fail : %v", err)
 	}
-	log.Println("Connection to MongoDB closed.")
+	logger.L.Traceln("Connection to MongoDB closed.")
 }
 
 func (c *MongoClient) InsertUser(user User) error {

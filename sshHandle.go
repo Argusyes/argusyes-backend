@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"log"
+	"logger"
 	"net/http"
 	"regexp"
 	"ssh"
@@ -21,31 +21,31 @@ func handleNewSSHConnect(w http.ResponseWriter, r *http.Request) {
 	id := uuid.New()
 	key := fmt.Sprintf("%s:%s", conn.RemoteAddr().String(), id.String())
 	if err != nil {
-		log.Printf("websocket upgrade %s fail : %v", key, err)
+		logger.L.Debugf("websocket upgrade %s fail : %v", key, err)
 		return
 	}
-	log.Printf("websocket connected from : %s", key)
+	logger.L.Debugf("websocket connected from : %s", key)
 
 	mt, message, err := conn.ReadMessage()
 	if err != nil {
-		log.Printf("websocket %s error: %v", key, err)
+		logger.L.Debugf("websocket %s error: %v", key, err)
 		return
 	}
 	switch mt {
 	case websocket.TextMessage:
-		log.Printf("websocket %s recv : %s", key, message)
+		logger.L.Debugf("websocket %s recv : %s", key, message)
 		wsRequest := &WSRequest{}
 		err := json.Unmarshal(message, wsRequest)
 		if err != nil || wsRequest.Method != "ssh.startSSH" {
 			errText := fmt.Sprintf("Json parse fail : %v", err)
-			log.Printf(errText)
+			logger.L.Debugf(errText)
 			idReg := regexp.MustCompile(`"id":"([^)]+)"`)
 			if idReg == nil {
-				log.Fatalf("regexp parse fail : id")
+				logger.L.Fatalf("regexp parse fail : id")
 			}
 			idRegResults := idReg.FindAllSubmatch(message, -1)
 			if idRegResults == nil {
-				log.Printf("parse id fail")
+				logger.L.Debugf("parse id fail")
 				return
 			}
 			wsResponse := &WSResponse{
@@ -69,7 +69,7 @@ func handleNewSSHConnect(w http.ResponseWriter, r *http.Request) {
 		err = json.Unmarshal(message, wsStartSSHRequest)
 		if err != nil {
 			errText := fmt.Sprintf("Json parse fail : %v", err)
-			log.Printf(errText)
+			logger.L.Debugf(errText)
 			wsResponse := &WSResponse{
 				ResponseHead: ResponseHead{
 					Id: id,
@@ -86,7 +86,7 @@ func handleNewSSHConnect(w http.ResponseWriter, r *http.Request) {
 			return
 		} else if err := valid.Struct(wsStartSSHRequest); err != nil {
 			errText := fmt.Sprintf("message validate fail : %v", err)
-			log.Printf(errText)
+			logger.L.Debugf(errText)
 			wsResponse := &WSResponse{
 				ResponseHead: ResponseHead{
 					Id: id,

@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/pelletier/go-toml"
-	"log"
+	"logger"
 	"mongoDB"
 	"net/http"
 	_ "net/http/pprof"
@@ -23,7 +23,6 @@ var valid *validator.Validate
 const jwtSecret = "Argusyes"
 
 func init() {
-	log.SetFlags(log.Ltime | log.Lshortfile)
 	valid = validator.New()
 }
 
@@ -31,14 +30,14 @@ func main() {
 	go func() {
 		runtime.SetBlockProfileRate(1)
 		runtime.SetMutexProfileFraction(1)
-		log.Println(http.ListenAndServe(":6060", nil))
+		logger.L.Println(http.ListenAndServe(":6060", nil))
 	}()
 
 	defer mongoDB.Client.Close()
 
 	conf, err := toml.LoadFile("./conf.toml")
 	if err != nil {
-		log.Fatalf("Read Config File Fail %e", err)
+		logger.L.Fatalf("Read Config File Fail %e", err)
 	}
 
 	ip := conf.Get("server.IP").(string)
@@ -68,7 +67,7 @@ func main() {
 	})
 
 	if err := router.Run(addr); err != nil {
-		log.Fatal("failed run app: ", err)
+		logger.L.Fatal("failed run app: ", err)
 	}
 }
 

@@ -5,7 +5,7 @@ import (
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
 	"io"
-	"log"
+	"logger"
 	"mutexMap"
 	"sync"
 )
@@ -16,7 +16,7 @@ func generalKey(port int, host, user string) string {
 
 type Manager struct {
 	clients mutexMap.MutexMap[*SSH]
-	mutexes mutexMap.MutexMap[sync.Mutex]
+	mutexes mutexMap.MutexMap[*sync.Mutex]
 }
 
 var M = newManager()
@@ -24,7 +24,7 @@ var M = newManager()
 func newManager() *Manager {
 	return &Manager{
 		clients: mutexMap.NewMutexMap[*SSH](0),
-		mutexes: mutexMap.NewMutexMap[sync.Mutex](0),
+		mutexes: mutexMap.NewMutexMap[*sync.Mutex](0),
 	}
 }
 
@@ -41,22 +41,28 @@ func (m *Manager) getSSH(port int, host, user, passwd string) (*SSH, error) {
 	}
 	m.clients.Set(key, c)
 	c.startAllMonitor()
-	log.Printf("ssh client create %s", c.Key)
+	logger.L.Debugf("ssh client create %s", c.Key)
 	return c, nil
 }
 
-func (m *Manager) deleteSSH(key string, client *SSH) {
-	if client.Empty() {
-		client.Close()
-		m.clients.Remove(key)
-		m.mutexes.Remove(key)
-		log.Printf("ssh client delete %s", client.Key)
-	}
+func (m *Manager) delayDeleteSSH(key string, client *SSH) {
+	client.closeTimer.Reset(client.closeDelay)
+	go func() {
+		<-client.closeTimer.C
+		mutex := m.mutexes.GetNilThenSet(client.Key, &sync.Mutex{})
+		mutex.Lock()
+		if client.Empty() {
+			client.Close()
+			m.clients.Remove(key)
+			logger.L.Debugf("ssh client delete %s", client.Key)
+		}
+		mutex.Unlock()
+	}()
 }
 
 func (m *Manager) RegisterSSHListener(port int, host, user, passwd, wsKey string, listeners AllListener) error {
 	key := generalKey(port, host, user)
-	mutex := m.mutexes.GetNilThenSet(key, sync.Mutex{})
+	mutex := m.mutexes.GetNilThenSet(key, &sync.Mutex{})
 	mutex.Lock()
 	defer mutex.Unlock()
 	s, err := m.getSSH(port, host, user, passwd)
@@ -69,7 +75,7 @@ func (m *Manager) RegisterSSHListener(port int, host, user, passwd, wsKey string
 
 func (m *Manager) RemoveSSHListener(port int, host, user, wsKey string) {
 	key := generalKey(port, host, user)
-	mutex := m.mutexes.GetNilThenSet(key, sync.Mutex{})
+	mutex := m.mutexes.GetNilThenSet(key, &sync.Mutex{})
 	mutex.Lock()
 	defer mutex.Unlock()
 	v, ok := m.clients.Get(key)
@@ -78,13 +84,13 @@ func (m *Manager) RemoveSSHListener(port int, host, user, wsKey string) {
 	}
 	v.RemoveSSHListener(wsKey)
 	if v.Empty() {
-		m.deleteSSH(v.Key, v)
+		m.delayDeleteSSH(v.Key, v)
 	}
 }
 
 func (m *Manager) RegisterRoughListener(port int, host string, user string, passwd string, wsKey string, listener func(m RoughMessage)) error {
 	key := generalKey(port, host, user)
-	mutex := m.mutexes.GetNilThenSet(key, sync.Mutex{})
+	mutex := m.mutexes.GetNilThenSet(key, &sync.Mutex{})
 	mutex.Lock()
 	defer mutex.Unlock()
 	s, err := m.getSSH(port, host, user, passwd)
@@ -97,7 +103,7 @@ func (m *Manager) RegisterRoughListener(port int, host string, user string, pass
 
 func (m *Manager) RemoveRoughListener(port int, host string, user string, wsKey string) {
 	key := generalKey(port, host, user)
-	mutex := m.mutexes.GetNilThenSet(key, sync.Mutex{})
+	mutex := m.mutexes.GetNilThenSet(key, &sync.Mutex{})
 	mutex.Lock()
 	defer mutex.Unlock()
 	v, ok := m.clients.Get(key)
@@ -106,22 +112,20 @@ func (m *Manager) RemoveRoughListener(port int, host string, user string, wsKey 
 	}
 	v.RemoveRoughListener(wsKey)
 	if v.Empty() {
-		m.deleteSSH(v.Key, v)
+		m.delayDeleteSSH(v.Key, v)
 	}
 }
 
 func (m *Manager) ClearListener(wsKey string) {
 	m.clients.Each(func(_ string, v *SSH) {
 		if v.HasSSHListener(wsKey) || v.HasRoughListener(wsKey) {
-			mutex := m.mutexes.GetNilThenSet(v.Key, sync.Mutex{})
+			mutex := m.mutexes.GetNilThenSet(v.Key, &sync.Mutex{})
 			mutex.Lock()
+			defer mutex.Unlock()
 			v.RemoveSSHListener(wsKey)
 			v.RemoveRoughListener(wsKey)
-			if v.Empty() {
-				m.deleteSSH(v.Key, v)
-			}
-			mutex.Unlock()
-			log.Printf("done clear die wsocket handler in ssh %s", v.Key)
+			m.delayDeleteSSH(v.Key, v)
+			logger.L.Debugf("done clear die wsocket handler in ssh %s", v.Key)
 		}
 	})
 }
@@ -161,13 +165,13 @@ func (w myReader) Read(p []byte) (int, error) {
 func (m *Manager) NewSSHClientWithConn(port int, host string, user string, passwd string, conn *websocket.Conn, mutex *sync.Mutex) (bool, error) {
 	c, err := newSimpleSSH(port, host, user, passwd)
 	if err != nil {
-		log.Printf("new client fail : %v", err)
+		logger.L.Debugf("new client fail : %v", err)
 		return false, err
 	}
 
 	session, err := c.NewSession()
 	if err != nil {
-		log.Printf("new session fail : %v", err)
+		logger.L.Debugf("new session fail : %v", err)
 		return false, err
 	}
 
@@ -176,7 +180,7 @@ func (m *Manager) NewSSHClientWithConn(port int, host string, user string, passw
 	session.Stdin = myReader{conn: conn, clean: func() {
 		err := session.Signal(ssh.SIGHUP)
 		if err != nil {
-			log.Printf("signal error: %s", err.Error())
+			logger.L.Debugf("signal error: %s", err.Error())
 		}
 	}}
 
@@ -189,28 +193,28 @@ func (m *Manager) NewSSHClientWithConn(port int, host string, user string, passw
 
 	// 请求伪终端
 	if err = session.RequestPty("linux", 32, 160, modes); err != nil {
-		log.Printf("request pty error: %s", err.Error())
+		logger.L.Debugf("request pty error: %s", err.Error())
 		return false, err
 	}
 
 	//启动远程shell
 	if err = session.Shell(); err != nil {
-		log.Printf("start shell error: %s", err.Error())
+		logger.L.Debugf("start shell error: %s", err.Error())
 		return false, err
 	}
 	go func() {
 		//等待远程命令（终端）退出
 		if err := session.Wait(); err != nil {
-			log.Printf("return error: %s", err.Error())
+			logger.L.Debugf("return error: %s", err.Error())
 		}
 		if err := session.Close(); err != nil {
-			log.Printf("close error: %s", err.Error())
+			logger.L.Debugf("close error: %s", err.Error())
 		}
 		if err := c.Close(); err != nil {
-			log.Printf("close error: %s", err.Error())
+			logger.L.Debugf("close error: %s", err.Error())
 		}
 		if err := conn.Close(); err != nil {
-			log.Printf("close error: %s", err.Error())
+			logger.L.Debugf("close error: %s", err.Error())
 		}
 	}()
 

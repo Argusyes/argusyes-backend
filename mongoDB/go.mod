@@ -1,8 +1,11 @@
 module mongoDB
 
 go 1.19
-
+replace (
+logger => ../logger
+)
 require (
+logger v0.0.0
 	github.com/pelletier/go-toml v1.9.5
 	go.mongodb.org/mongo-driver v1.10.3
 )

@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	jsoniter "github.com/json-iterator/go"
-	"log"
+	"logger"
 	"regexp"
 	"ssh"
 	"strings"
@@ -124,7 +124,7 @@ func listenerTemplate[M any](conn *wsocket.Connect, event string) func(m M) {
 
 		requestBytes, err := json.Marshal(request)
 		if err != nil {
-			log.Fatalf("json parse fail : %v", err)
+			logger.L.Fatalf("json parse fail : %v", err)
 		}
 		conn.WriteMessage(requestBytes)
 	}
@@ -150,7 +150,7 @@ func messageJsonParseHelper(id string, conn *wsocket.Connect, msg []byte, v inte
 	err := json.Unmarshal(msg, v)
 	if err != nil {
 		errText := fmt.Sprintf("Json parse fail : %v", err)
-		log.Printf(errText)
+		logger.L.Debugf(errText)
 		wsResponse := &WSResponse{
 			ResponseHead: ResponseHead{
 				Id: id,
@@ -167,7 +167,7 @@ func messageJsonParseHelper(id string, conn *wsocket.Connect, msg []byte, v inte
 		return false
 	} else if err := valid.Struct(v); err != nil {
 		errText := fmt.Sprintf("message validate fail : %v", err)
-		log.Printf(errText)
+		logger.L.Debugf(errText)
 		wsResponse := &WSResponse{
 			ResponseHead: ResponseHead{
 				Id: id,
@@ -190,25 +190,25 @@ func messageJsonStringifyHelper(v interface{}) ([]byte, bool) {
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		errText := fmt.Sprintf("Json parse fail : %v", err)
-		log.Printf(errText)
+		logger.L.Debugf(errText)
 		return nil, false
 	} else if err := valid.Struct(v); err != nil {
 		errText := fmt.Sprintf("message validate fail : %v", err)
-		log.Printf(errText)
+		logger.L.Debugf(errText)
 		return nil, false
 	}
 	return bytes, true
 }
 
 func messageRouter(conn *wsocket.Connect, msg []byte) {
-	log.Printf("%s handle message %s", conn.Key, string(msg))
+	logger.L.Debugf("%s handle message %s", conn.Key, string(msg))
 	ms := string(msg)
 	if strings.Contains(ms, "method") {
 		handleRequest(conn, msg)
 	} else if strings.Contains(ms, "result") {
 		handleResponse(conn, msg)
 	} else {
-		log.Printf("unknown msg : %s", ms)
+		logger.L.Debugf("unknown msg : %s", ms)
 	}
 }
 
@@ -217,14 +217,14 @@ func handleRequestCommon(msg []byte, conn *wsocket.Connect) (id, method string, 
 	err := json.Unmarshal(msg, wsRequest)
 	if err != nil {
 		errText := fmt.Sprintf("Json parse fail : %v", err)
-		log.Printf(errText)
+		logger.L.Debugf(errText)
 		idReg := regexp.MustCompile(`"id":"([^)]+)"`)
 		if idReg == nil {
-			log.Fatalf("regexp parse fail : id")
+			logger.L.Fatalf("regexp parse fail : id")
 		}
 		idRegResults := idReg.FindAllSubmatch(msg, -1)
 		if idRegResults == nil {
-			log.Printf("parse id fail")
+			logger.L.Debugf("parse id fail")
 			return "", "", false
 		}
 		wsResponse := &WSResponse{
@@ -252,7 +252,7 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 	}
 	switch method {
 	case "ssh.startRoughMonitor":
-		log.Printf("%s handle ssh.startMonitior", conn.Key)
+		logger.L.Debugf("%s handle ssh.startMonitior", conn.Key)
 		wsMonitorSSHRequest := &WSMonitorSSHRequest{}
 		if ok := messageJsonParseHelper(id, conn, msg, wsMonitorSSHRequest); !ok {
 			return
@@ -291,13 +291,13 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 				wsMonitorSSHResponse.Result = append(wsMonitorSSHResponse.Result, result)
 				m.Unlock()
 				wg.Done()
-				log.Printf("rough done %d %s %s", port, host, user)
+				logger.L.Debugf("rough done %d %s %s", port, host, user)
 			}(p.Port, p.Host, p.User, p.Passwd)
 		}
 		wg.Wait()
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsMonitorSSHResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
-			log.Printf("send to wsocket %s", string(wsResponseBytes))
+			logger.L.Debugf("send to wsocket %s", string(wsResponseBytes))
 		}
 
 	case "ssh.stopRoughMonitor":
@@ -325,10 +325,10 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 		}
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsUnMonitorSSHResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
-			log.Printf("send to wsocket %s", string(wsResponseBytes))
+			logger.L.Debugf("send to wsocket %s", string(wsResponseBytes))
 		}
 	case "ssh.startMonitor":
-		log.Printf("%s handle ssh.startMonitior", conn.Key)
+		logger.L.Debugf("%s handle ssh.startMonitior", conn.Key)
 		wsMonitorSSHRequest := &WSMonitorSSHRequest{}
 		if ok := messageJsonParseHelper(id, conn, msg, wsMonitorSSHRequest); !ok {
 			return
@@ -367,13 +367,13 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 				wsMonitorSSHResponse.Result = append(wsMonitorSSHResponse.Result, result)
 				m.Unlock()
 				wg.Done()
-				log.Printf("done %d %s %s", port, host, user)
+				logger.L.Debugf("done %d %s %s", port, host, user)
 			}(p.Port, p.Host, p.User, p.Passwd)
 		}
 		wg.Wait()
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsMonitorSSHResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
-			log.Printf("send to wsocket %s", string(wsResponseBytes))
+			logger.L.Debugf("send to wsocket %s", string(wsResponseBytes))
 		}
 	case "ssh.stopMonitor":
 		wsUnMonitorSSHRequest := &WSUnMonitorSSHRequest{}
@@ -400,11 +400,11 @@ func handleRequest(conn *wsocket.Connect, msg []byte) {
 		}
 		if wsResponseBytes, ok := messageJsonStringifyHelper(wsUnMonitorSSHResponse); ok {
 			conn.WriteMessage(wsResponseBytes)
-			log.Printf("send to wsocket %s", string(wsResponseBytes))
+			logger.L.Debugf("send to wsocket %s", string(wsResponseBytes))
 		}
 	}
 }
 
 func handleResponse(conn *wsocket.Connect, msg []byte) {
-	log.Printf("recv response : %s", string(msg))
+	logger.L.Debugf("recv response : %s", string(msg))
 }

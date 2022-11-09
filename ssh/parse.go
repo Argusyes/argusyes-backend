@@ -6,7 +6,7 @@ import (
 	mapSet "github.com/deckarep/golang-set/v2"
 	"github.com/pkg/sftp"
 	"io/ioutil"
-	"log"
+	"logger"
 	"math"
 	"os"
 	"regexp"
@@ -144,16 +144,16 @@ func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
 		// 正则匹配
 		physicalIdReg := regexp.MustCompile(`physical id\t: (\d+)\n`)
 		if physicalIdReg == nil {
-			log.Fatalf("regexp parse fail : physical id")
+			logger.L.Fatalf("regexp parse fail : physical id")
 		}
 		physicalIdRegResults := physicalIdReg.FindAllStringSubmatch(cpu, -1)
 		if physicalIdRegResults == nil {
-			log.Printf("parse physical id fail")
+			logger.L.Debugf("parse physical id fail")
 			continue
 		}
 		physicalId, err := strconv.ParseInt(physicalIdRegResults[0][1], 10, 64)
 		if err != nil {
-			log.Printf("parse int fail : %v", err)
+			logger.L.Debugf("parse int fail : %v", err)
 			continue
 		}
 		cpuInfo, ok := m.CPUInfoMap[physicalId]
@@ -181,7 +181,7 @@ func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
 					temp := strings.TrimSpace(strings.Split(line, ":")[1])
 					parseInt, err := strconv.ParseInt(temp, 10, 64)
 					if err != nil {
-						log.Printf("parse int fail : %v", err)
+						logger.L.Debugf("parse int fail : %v", err)
 						continue
 					}
 					cpuInfo.Siblings = parseInt
@@ -190,7 +190,7 @@ func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
 					temp := strings.TrimSpace(strings.Split(line, ":")[1])
 					parseInt, err := strconv.ParseInt(temp, 10, 64)
 					if err != nil {
-						log.Printf("parse int fail : %v", err)
+						logger.L.Debugf("parse int fail : %v", err)
 						continue
 					}
 					cpuInfo.CPUCores = parseInt
@@ -202,7 +202,7 @@ func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
 					temp := strings.TrimSpace(strings.Split(line, ":")[1])
 					parseFloat, err := strconv.ParseFloat(temp, 64)
 					if err != nil {
-						log.Printf("parse float fail : %v", err)
+						logger.L.Debugf("parse float fail : %v", err)
 						continue
 					}
 					cpuInfo.Bogomips = parseFloat
@@ -210,7 +210,7 @@ func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
 					temp := strings.TrimSpace(strings.Split(line, ":")[1])
 					parseInt, err := strconv.ParseInt(temp, 10, 64)
 					if err != nil {
-						log.Printf("parse int fail : %v", err)
+						logger.L.Debugf("parse int fail : %v", err)
 						continue
 					}
 					cpuInfo.ClFlushSize = parseInt
@@ -218,7 +218,7 @@ func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
 					temp := strings.TrimSpace(strings.Split(line, ":")[1])
 					parseInt, err := strconv.ParseInt(temp, 10, 64)
 					if err != nil {
-						log.Printf("parse int fail : %v", err)
+						logger.L.Debugf("parse int fail : %v", err)
 						continue
 					}
 					cpuInfo.CacheAlignment = parseInt
@@ -230,16 +230,16 @@ func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
 		}
 		coreIdReg := regexp.MustCompile(`core id\t\t: (\d+)\n`)
 		if coreIdReg == nil {
-			log.Fatalf("regexp parse fail : core id")
+			logger.L.Fatalf("regexp parse fail : core id")
 		}
 		coreIdRegResults := coreIdReg.FindAllStringSubmatch(cpu, -1)
 		if coreIdRegResults == nil {
-			log.Printf("parse core id fail")
+			logger.L.Debugf("parse core id fail")
 			continue
 		}
 		coreId, err := strconv.ParseInt(coreIdRegResults[0][1], 10, 64)
 		if err != nil {
-			log.Printf("parse int fail : %v", err)
+			logger.L.Debugf("parse int fail : %v", err)
 			continue
 		}
 		cpuCoreInfo, ok := cpuInfo.CPUCoreInfoMap[coreId]
@@ -252,16 +252,16 @@ func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
 		}
 		processorIdReg := regexp.MustCompile(`processor\t: (\d+)\n`)
 		if processorIdReg == nil {
-			log.Fatalf("regexp parse fail : processor id")
+			logger.L.Fatalf("regexp parse fail : processor id")
 		}
 		processorIdRegResults := processorIdReg.FindAllStringSubmatch(cpu, -1)
 		if processorIdRegResults == nil {
-			log.Printf("parse processor id fail")
+			logger.L.Debugf("parse processor id fail")
 			continue
 		}
 		processorId, err := strconv.ParseInt(processorIdRegResults[0][1], 10, 64)
 		if err != nil {
-			log.Printf("parse int fail : %v", err)
+			logger.L.Debugf("parse int fail : %v", err)
 			continue
 		}
 		cpuProcessorInfo, ok := cpuCoreInfo.CPUProcessorInfoMap[processorId]
@@ -276,7 +276,7 @@ func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
 					temp := strings.TrimSpace(strings.Split(line, ":")[1])
 					parseFloat, err := strconv.ParseFloat(temp, 64)
 					if err != nil {
-						log.Printf("parse float fail : %v", err)
+						logger.L.Debugf("parse float fail : %v", err)
 						continue
 					}
 					cpuProcessorInfo.CPUMHz = parseFloat
@@ -284,7 +284,7 @@ func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
 					temp := strings.TrimSpace(strings.Split(line, ":")[1])
 					parseInt, err := strconv.ParseInt(temp, 10, 64)
 					if err != nil {
-						log.Printf("parse int fail : %v", err)
+						logger.L.Debugf("parse int fail : %v", err)
 						continue
 					}
 					cpuProcessorInfo.Apicid = parseInt
@@ -321,13 +321,13 @@ func (p *Parser) parseCPUPerformanceMessage(c *MonitorContext) *CPUPerformanceMe
 	reg := regexp.MustCompile(`cpu(\d*)\s+(\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+)\n`)
 
 	if reg == nil {
-		log.Fatalf("regexp parse fail : cpu performance")
+		logger.L.Fatalf("regexp parse fail : cpu performance")
 	}
 	oldResult := reg.FindAllStringSubmatch(c.oldS, -1)
 	newResult := reg.FindAllStringSubmatch(c.newS, -1)
 
 	if oldResult == nil || newResult == nil {
-		log.Printf("parse cpu performance fail")
+		logger.L.Debugf("parse cpu performance fail")
 		return nil
 	}
 	// 运行时间
@@ -511,11 +511,11 @@ func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerform
 
 	MemTotalReg := regexp.MustCompile(`MemTotal:\D+(\d+) kB\n`)
 	if MemTotalReg == nil {
-		log.Fatalf("regexp parse fail : memory total")
+		logger.L.Fatalf("regexp parse fail : memory total")
 	}
 	MemTotalRegResults := MemTotalReg.FindAllStringSubmatch(c.newS, -1)
 	if MemTotalRegResults == nil {
-		log.Printf("parse memory total fail")
+		logger.L.Debugf("parse memory total fail")
 		return nil
 	}
 	TotalMem, ok := parseInt64(MemTotalRegResults[0][1])
@@ -529,11 +529,11 @@ func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerform
 
 	SwapTotalReg := regexp.MustCompile(`SwapTotal:\D+(\d+) kB\n`)
 	if SwapTotalReg == nil {
-		log.Fatalf("regexp parse fail : swap total")
+		logger.L.Fatalf("regexp parse fail : swap total")
 	}
 	SwapTotalRegResult := SwapTotalReg.FindAllStringSubmatch(c.newS, -1)
 	if SwapTotalRegResult == nil {
-		log.Printf("parse swap total fail")
+		logger.L.Debugf("parse swap total fail")
 		return nil
 	}
 	SwapTotal, ok := parseInt64(SwapTotalRegResult[0][1])
@@ -626,7 +626,7 @@ func (p *Parser) parseUptimeMessage(c *MonitorContext) *UptimeMessage {
 	}
 	uptime, err := strconv.ParseFloat(strings.Split(c.newS, " ")[0], 64)
 	if err != nil {
-		log.Printf("parse float fail : %v", err)
+		logger.L.Debugf("parse float fail : %v", err)
 		return nil
 	}
 	m.Uptime.UpDay = int64(uptime) / int64(60*60*24)
@@ -705,12 +705,12 @@ func (p *Parser) parseNetDevMessage(c *MonitorContext) *NetDevMessage {
 
 	reg := regexp.MustCompile(`([^:\n]+):\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\n`)
 	if reg == nil {
-		log.Fatalf("regexp parse fail : Net Dev")
+		logger.L.Fatalf("regexp parse fail : Net Dev")
 	}
 	oldResult := reg.FindAllStringSubmatch(c.oldS, -1)
 	newResult := reg.FindAllStringSubmatch(c.newS, -1)
 	if oldResult == nil || newResult == nil {
-		log.Printf("parse Net Dev fail")
+		logger.L.Debugf("parse Net Dev fail")
 		return nil
 	}
 	oldMap := make(map[string][]string, 0)
@@ -761,7 +761,7 @@ func (p *Parser) parseNetDevMessage(c *MonitorContext) *NetDevMessage {
 
 	EndIPReg := regexp.MustCompile(`.* (\d+\.\d+\.\d+\.\d+)$`)
 	if EndIPReg == nil {
-		log.Fatalf("regexp parse fail : EndIP")
+		logger.L.Fatalf("regexp parse fail : EndIP")
 		return nil
 	}
 
@@ -883,21 +883,21 @@ func (p *Parser) parseNetStatMessage(c *MonitorContext) *NetStatMessage {
 
 	TCPReg := regexp.MustCompile(`Tcp:\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d-]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\n`)
 	if TCPReg == nil {
-		log.Fatalf("regexp parse fail : net stat tcp")
+		logger.L.Fatalf("regexp parse fail : net stat tcp")
 	}
 	TCPRegResults := TCPReg.FindAllStringSubmatch(c.newS, -1)
 	if TCPRegResults == nil {
-		log.Printf("parse net stat tcp fail")
+		logger.L.Debugf("parse net stat tcp fail")
 		return nil
 	}
 
 	UDPReg := regexp.MustCompile(`Udp:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)[^\n]+\n`)
 	if UDPReg == nil {
-		log.Fatalf("regexp parse fail : net stat udp")
+		logger.L.Fatalf("regexp parse fail : net stat udp")
 	}
 	UDPRegResults := UDPReg.FindAllStringSubmatch(c.newS, -1)
 	if UDPRegResults == nil {
-		log.Printf("parse net stat udp fail")
+		logger.L.Debugf("parse net stat udp fail")
 		return nil
 	}
 	ok := true
@@ -1001,11 +1001,11 @@ func (p *Parser) parseDiskMessage(c *MonitorContext) *DiskMessage {
 	}
 	MountReg := regexp.MustCompile(`(\S+) (\S+) (\S+) (\S+) (\d+) (\d+)\n`)
 	if MountReg == nil {
-		log.Fatalf("regexp parse fail : mounts")
+		logger.L.Fatalf("regexp parse fail : mounts")
 	}
 	MountStatsRegResults := MountReg.FindAllStringSubmatch(mounts, -1)
 	if MountStatsRegResults == nil {
-		log.Printf("parse mounts fail")
+		logger.L.Debugf("parse mounts fail")
 		return nil
 	}
 	mountSet := mapSet.NewSet[string]()
@@ -1019,7 +1019,7 @@ func (p *Parser) parseDiskMessage(c *MonitorContext) *DiskMessage {
 
 	DiskReg := regexp.MustCompile(`(\d+)\s+(\d+)\s+(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)[^\n]+\n`)
 	if DiskReg == nil {
-		log.Fatalf("regexp parse fail : disk")
+		logger.L.Fatalf("regexp parse fail : disk")
 	}
 	oldDiskRegResults := DiskReg.FindAllStringSubmatch(c.oldS, -1)
 	newDiskRegResults := DiskReg.FindAllStringSubmatch(c.newS, -1)
@@ -1028,7 +1028,7 @@ func (p *Parser) parseDiskMessage(c *MonitorContext) *DiskMessage {
 		diff++
 	}
 	if oldDiskRegResults == nil || newDiskRegResults == nil {
-		log.Printf("parse disk fail")
+		logger.L.Debugf("parse disk fail")
 		return nil
 	}
 	oldDiskMap := make(map[string][]string, 0)
@@ -1158,7 +1158,7 @@ func getProcessNew(c *MonitorContext) bool {
 
 	proc, err := c.client.ReadDir("/proc")
 	if err != nil {
-		log.Printf("Read Proc fail : %v", err)
+		logger.L.Debugf("Read Proc fail : %v", err)
 		return false
 	}
 	numberReg := regexp.MustCompile(`\d+`)
@@ -1263,7 +1263,7 @@ func (p *Parser) parseProcessMessage(c *MonitorContext) *ProcessMessage {
 
 	statReg := regexp.MustCompile(`^\s*(\d+)\s+(\S+)\s+(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d-]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+).*\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)$`)
 	if statReg == nil {
-		log.Printf("parse stat reg fail : %v", statReg)
+		logger.L.Debugf("parse stat reg fail : %v", statReg)
 		return nil
 	}
 
@@ -1350,7 +1350,7 @@ func (p *Parser) parseProcessMessage(c *MonitorContext) *ProcessMessage {
 func parseInt64(s string) (int64, bool) {
 	parseInt, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		log.Printf("parse int fail %s : %v", s, err)
+		logger.L.Debugf("parse int fail %s : %v", s, err)
 		return 0, false
 	}
 	return parseInt, true
@@ -1359,7 +1359,7 @@ func parseInt64(s string) (int64, bool) {
 func parseInt64Base16(s string) (int64, bool) {
 	parseInt, err := strconv.ParseInt(s, 16, 64)
 	if err != nil {
-		log.Printf("parse int fail %s : %v", s, err)
+		logger.L.Debugf("parse int fail %s : %v", s, err)
 		return 0, false
 	}
 	return parseInt, true
@@ -1368,7 +1368,7 @@ func parseInt64Base16(s string) (int64, bool) {
 func parseFloat64(s string) (float64, bool) {
 	parseFloat, err := strconv.ParseFloat(s, 64)
 	if err != nil {
-		log.Printf("parse float fail %s : %v", s, err)
+		logger.L.Debugf("parse float fail %s : %v", s, err)
 		return 0, false
 	}
 	return parseFloat, true
@@ -1398,21 +1398,21 @@ func readFile(where string, client *sftp.Client, doLog bool) (string, bool) {
 	srcFile, err := client.OpenFile(where, os.O_RDONLY)
 	if err != nil {
 		if doLog {
-			log.Printf("Read %s file fail : %v", where, err)
+			logger.L.Debugf("Read %s file fail : %v", where, err)
 		}
 		return "", false
 	}
 	f, err := ioutil.ReadAll(srcFile)
 	if err != nil {
 		if doLog {
-			log.Printf("Read %s file fail : %v", where, err)
+			logger.L.Debugf("Read %s file fail : %v", where, err)
 		}
 		return "", false
 	}
 	err = srcFile.Close()
 	if err != nil {
 		if doLog {
-			log.Printf("Close %s file fail : %v", where, err)
+			logger.L.Debugf("Close %s file fail : %v", where, err)
 		}
 	}
 	return string(f), true
