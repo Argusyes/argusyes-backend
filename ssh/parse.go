@@ -57,12 +57,12 @@ type Parser struct {
 	}
 }
 
-func (p *Parser) parseRoughMessage(port int, host, user string) *RoughMessage {
+func (p *Parser) parseRoughMessage(context *MonitorContext) *RoughMessage {
 	m := &RoughMessage{
 		Message: Message{
-			Port: port,
-			Host: host,
-			User: user,
+			Port: context.port,
+			Host: context.host,
+			User: context.user,
 		},
 		CPU: RoughCPU{
 			Utilization: p.CPU.Utilization,
@@ -104,7 +104,29 @@ func (p *Parser) parseRoughMessage(port int, host, user string) *RoughMessage {
 	return m
 }
 
+func newToOld(c *MonitorContext) {
+	c.oldTime = c.newTime
+	c.oldS = c.newS
+	c.newS = ""
+}
+
+func getNew(c *MonitorContext) bool {
+	if c.where == "" {
+		return false
+	}
+	newS, ok := readFile(c.where, c.client, true)
+	if !ok {
+		return false
+	}
+	c.newS = newS
+	c.newTime = time.Now()
+	return true
+}
+
 func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
+	if !getNew(c) {
+		return nil
+	}
 	m := &CPUInfoMessage{
 		Message: Message{
 			Port: c.port,
@@ -275,14 +297,16 @@ func (p *Parser) parseCPUInfoMessage(c *MonitorContext) *CPUInfoMessage {
 }
 
 func (p *Parser) parseCPUPerformanceMessage(c *MonitorContext) *CPUPerformanceMessage {
-	defer func() {
-		c.oldTime = c.newTime
-		c.oldS = c.newS
-		c.newS = ""
-	}()
-	if c.oldS == "" {
+	if !getNew(c) {
 		return nil
 	}
+	if c.oldS == "" {
+		newToOld(c)
+		if !getNew(c) {
+			return nil
+		}
+	}
+	defer newToOld(c)
 	// Linux 时间片默认为 10ms
 	jiffies := int64(10)
 	m := &CPUPerformanceMessage{
@@ -473,6 +497,9 @@ func (p *Parser) parseCPUPerformanceMessage(c *MonitorContext) *CPUPerformanceMe
 }
 
 func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerformanceMessage {
+	if !getNew(c) {
+		return nil
+	}
 	m := &MemoryPerformanceMessage{
 		Message: Message{
 			Port: c.port,
@@ -586,6 +613,9 @@ func (p *Parser) parseMemoryPerformanceMessage(c *MonitorContext) *MemoryPerform
 }
 
 func (p *Parser) parseUptimeMessage(c *MonitorContext) *UptimeMessage {
+	if !getNew(c) {
+		return nil
+	}
 	m := &UptimeMessage{
 		Message: Message{
 			Port: c.port,
@@ -610,6 +640,9 @@ func (p *Parser) parseUptimeMessage(c *MonitorContext) *UptimeMessage {
 }
 
 func (p *Parser) parseLoadavgMessage(c *MonitorContext) *LoadavgMessage {
+	if !getNew(c) || p.CPU.CPUProcessorNum == 0 {
+		return nil
+	}
 	m := &LoadavgMessage{
 		Message: Message{
 			Port: c.port,
@@ -617,9 +650,6 @@ func (p *Parser) parseLoadavgMessage(c *MonitorContext) *LoadavgMessage {
 			User: c.user,
 		},
 		Loadavg: Loadavg{},
-	}
-	if p.CPU.CPUProcessorNum == 0 {
-		return nil
 	}
 	n := strings.ReplaceAll(c.newS, "\n", "")
 	ss := strings.Split(n, " ")
@@ -653,14 +683,16 @@ func (p *Parser) parseLoadavgMessage(c *MonitorContext) *LoadavgMessage {
 }
 
 func (p *Parser) parseNetDevMessage(c *MonitorContext) *NetDevMessage {
-	defer func() {
-		c.oldTime = c.newTime
-		c.oldS = c.newS
-		c.newS = ""
-	}()
-	if c.oldS == "" {
+	if !getNew(c) {
 		return nil
 	}
+	if c.oldS == "" {
+		newToOld(c)
+		if !getNew(c) {
+			return nil
+		}
+	}
+	defer newToOld(c)
 	m := &NetDevMessage{
 		Message: Message{
 			Port: c.port,
@@ -836,6 +868,9 @@ func (p *Parser) parseNetDevMessage(c *MonitorContext) *NetDevMessage {
 }
 
 func (p *Parser) parseNetStatMessage(c *MonitorContext) *NetStatMessage {
+	if !getNew(c) {
+		return nil
+	}
 	m := &NetStatMessage{
 		Message{
 			Port: c.port,
@@ -888,7 +923,7 @@ func (p *Parser) parseNetStatMessage(c *MonitorContext) *NetStatMessage {
 		return nil
 	}
 	if m.NetTCP.OutSegments != 0 {
-		m.NetTCP.ReTransRate = roundFloat(100 * float64(m.NetTCP.ReTransSegments)/float64(m.NetTCP.OutSegments), 2)
+		m.NetTCP.ReTransRate = roundFloat(100*float64(m.NetTCP.ReTransSegments)/float64(m.NetTCP.OutSegments), 2)
 	}
 	if m.NetUDP.InDatagrams, ok = parseInt64(UDPRegResults[0][1]); !ok {
 		return nil
@@ -907,6 +942,9 @@ func (p *Parser) parseNetStatMessage(c *MonitorContext) *NetStatMessage {
 }
 
 func (p *Parser) parseTempMessage(c *MonitorContext) *TempMessage {
+	if !getNew(c) {
+		return nil
+	}
 	m := &TempMessage{
 		Message: Message{
 			Port: c.port,
@@ -939,14 +977,16 @@ func (p *Parser) parseTempMessage(c *MonitorContext) *TempMessage {
 }
 
 func (p *Parser) parseDiskMessage(c *MonitorContext) *DiskMessage {
-	defer func() {
-		c.oldTime = c.newTime
-		c.oldS = c.newS
-		c.newS = ""
-	}()
-	if c.oldS == "" {
+	if !getNew(c) {
 		return nil
 	}
+	if c.oldS == "" {
+		newToOld(c)
+		if !getNew(c) {
+			return nil
+		}
+	}
+	defer newToOld(c)
 	m := &DiskMessage{
 		Message: Message{
 			Port: c.port,
@@ -1109,18 +1149,17 @@ func (p *Parser) parseDiskMessage(c *MonitorContext) *DiskMessage {
 	return m
 }
 
-func (p *Parser) parseProcessMessage(c *MonitorContext) *ProcessMessage {
-
+func getProcessNew(c *MonitorContext) bool {
 	cpuStat, ok := readFile("/proc/stat", c.client, true)
 	if !ok {
-		return nil
+		return false
 	}
 	cpuStat = strings.Split(cpuStat, "\n")[0]
 
 	proc, err := c.client.ReadDir("/proc")
 	if err != nil {
 		log.Printf("Read Proc fail : %v", err)
-		return nil
+		return false
 	}
 	numberReg := regexp.MustCompile(`\d+`)
 	name := make([]string, 0)
@@ -1172,16 +1211,40 @@ func (p *Parser) parseProcessMessage(c *MonitorContext) *ProcessMessage {
 
 	c.newS = strings.Join(stats, "\n")
 	c.newTime = time.Now()
+	return true
+}
 
-	defer func() {
-		c.oldTime = c.newTime
-		c.oldS = c.newS
-		c.newS = ""
-	}()
+func decodeProcessString(s string) (int64, []string) {
+	stats := strings.Split(s, "\n")
 
-	if c.oldS == "" || p.CPU.CPUProcessorNum == 0 {
+	CPUStat := stats[0]
+	CPUStatSS := strings.Split(CPUStat, " ")
+	totalCPUTime := int64(0)
+	for i := 1; i < len(CPUStatSS); i++ {
+		if CPUStatSS[i] == "" {
+			continue
+		}
+		t, ok := parseInt64(CPUStatSS[i])
+		if ok {
+			totalCPUTime += t
+		}
+	}
+	return totalCPUTime, stats[1:]
+}
+
+func (p *Parser) parseProcessMessage(c *MonitorContext) *ProcessMessage {
+	if !getProcessNew(c) || p.CPU.CPUProcessorNum == 0 {
 		return nil
 	}
+	if c.oldS == "" {
+		newToOld(c)
+		if !getProcessNew(c) {
+			return nil
+		}
+	}
+
+	defer newToOld(c)
+
 	m := &ProcessMessage{
 		Message: Message{
 			Port: c.port,
@@ -1190,32 +1253,9 @@ func (p *Parser) parseProcessMessage(c *MonitorContext) *ProcessMessage {
 		},
 		Process: make([]Process, 0),
 	}
-	oldStats := strings.Split(c.oldS, "\n")
+	oldTotalCPUTime, oldStats := decodeProcessString(c.oldS)
+	newTotalCPUTime, stats := decodeProcessString(c.newS)
 
-	oldCPUStat := oldStats[0]
-	oldCPUStatSS := strings.Split(oldCPUStat, " ")
-	oldTotalCPUTime := int64(0)
-	for i := 1; i < len(oldCPUStatSS); i++ {
-		if oldCPUStatSS[i] == "" {
-			continue
-		}
-		t, ok := parseInt64(oldCPUStatSS[i])
-		if ok {
-			oldTotalCPUTime += t
-		}
-	}
-
-	cpuStatSS := strings.Split(cpuStat, " ")
-	newTotalCPUTime := int64(0)
-	for i := 1; i < len(cpuStatSS); i++ {
-		if cpuStatSS[i] == "" {
-			continue
-		}
-		t, ok := parseInt64(cpuStatSS[i])
-		if ok {
-			newTotalCPUTime += t
-		}
-	}
 	cpuTimeDiff := newTotalCPUTime - oldTotalCPUTime
 	if cpuTimeDiff == 0 {
 		cpuTimeDiff++
@@ -1228,10 +1268,7 @@ func (p *Parser) parseProcessMessage(c *MonitorContext) *ProcessMessage {
 	}
 
 	oldStatsMap := make(map[string][]string, 0)
-	for i, s := range oldStats {
-		if i == 0 {
-			continue
-		}
+	for _, s := range oldStats {
 		ss := statReg.FindAllStringSubmatch(s, -1)
 		if ss == nil {
 			continue
@@ -1239,10 +1276,7 @@ func (p *Parser) parseProcessMessage(c *MonitorContext) *ProcessMessage {
 		oldStatsMap[ss[0][1]+ss[0][2]] = ss[0]
 	}
 
-	for i, s := range stats {
-		if i == 0 {
-			continue
-		}
+	for _, s := range stats {
 		statRegResult := statReg.FindAllStringSubmatch(s, -1)
 		if statRegResult == nil {
 			continue

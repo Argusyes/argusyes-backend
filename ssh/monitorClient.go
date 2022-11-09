@@ -2,10 +2,8 @@ package ssh
 
 import (
 	"github.com/pkg/sftp"
-	"io/ioutil"
 	"log"
 	"mutexMap"
-	"os"
 	"sync"
 	"time"
 )
@@ -19,6 +17,7 @@ type MonitorContext struct {
 	newS    string
 	oldTime time.Time
 	newTime time.Time
+	where   string
 }
 
 type Client[M any] struct {
@@ -48,6 +47,10 @@ func (c *Client[M]) RemoveHandler(key string) {
 	c.listener.Remove(key)
 }
 
+func (c *Client[M]) hasHandler(key string) bool {
+	return c.listener.Has(key)
+}
+
 func (c *Client[M]) monitor(h *SSH, f func(context *MonitorContext) *M, second int) {
 	context := &MonitorContext{
 		client:  h.sftpClient,
@@ -58,6 +61,7 @@ func (c *Client[M]) monitor(h *SSH, f func(context *MonitorContext) *M, second i
 		newS:    "",
 		oldTime: time.Now(),
 		newTime: time.Now(),
+		where:   c.where,
 	}
 	for ; ; time.Sleep(time.Duration(second) * time.Second) {
 		select {
@@ -69,24 +73,6 @@ func (c *Client[M]) monitor(h *SSH, f func(context *MonitorContext) *M, second i
 				log.Printf("Unexpect recv %d", s)
 			}
 		default:
-			if c.where != "" {
-				srcFile, err := h.sftpClient.OpenFile(c.where, os.O_RDONLY)
-				if err != nil {
-					log.Printf("Read %s file fail : %v", c.where, err)
-					continue
-				}
-				newS, err := ioutil.ReadAll(srcFile)
-				if err != nil {
-					log.Printf("Read %s file fail : %v", c.where, err)
-					continue
-				}
-				context.newS = string(newS)
-				context.newTime = time.Now()
-				err = srcFile.Close()
-				if err != nil {
-					log.Printf("Close %s file fail : %v", c.where, err)
-				}
-			}
 			m := f(context)
 			if m != nil {
 				c.Handler(*m)

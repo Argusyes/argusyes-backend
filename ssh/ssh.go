@@ -6,7 +6,6 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"log"
-	"mutexMap"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,7 +23,7 @@ type SSH struct {
 	stop                    chan int
 	wg                      sync.WaitGroup
 	parser                  Parser
-	roughListener           mutexMap.MutexMap[Listener[RoughMessage]]
+	roughClient             Client[RoughMessage]
 	cpuInfoClient           Client[CPUInfoMessage]
 	cpuPerformanceClient    Client[CPUPerformanceMessage]
 	memoryPerformanceClient Client[MemoryPerformanceMessage]
@@ -78,7 +77,7 @@ func newSSH(port int, host, user, passwd string) (*SSH, error) {
 		sftpClient:              sftpClient,
 		stop:                    make(chan int),
 		parser:                  Parser{},
-		roughListener:           mutexMap.NewMutexMap[Listener[RoughMessage]](0),
+		roughClient:             NewClient[RoughMessage](""),
 		cpuInfoClient:           NewClient[CPUInfoMessage]("/proc/cpuinfo"),
 		cpuPerformanceClient:    NewClient[CPUPerformanceMessage]("/proc/stat"),
 		memoryPerformanceClient: NewClient[MemoryPerformanceMessage]("/proc/meminfo"),
@@ -108,25 +107,6 @@ func (h *SSH) Close() {
 	}
 }
 
-func (h *SSH) monitorRough(second int) {
-	for ; ; time.Sleep(time.Duration(second) * time.Second) {
-		select {
-		case s, ok := <-h.stop:
-			if !ok {
-				h.wg.Done()
-				return
-			} else {
-				log.Printf("Unexpect recv %d", s)
-			}
-		default:
-			m := h.parser.parseRoughMessage(h.Port, h.Host, h.User)
-			h.roughListener.Each(func(key string, val Listener[RoughMessage]) {
-				val(*m)
-			})
-		}
-	}
-}
-
 func (h *SSH) startAllMonitor() {
 	h.wg.Add(11)
 	go h.cpuInfoClient.monitor(h, h.parser.parseCPUInfoMessage, 10)
@@ -139,17 +119,17 @@ func (h *SSH) startAllMonitor() {
 	go h.tempClient.monitor(h, h.parser.parseTempMessage, 2)
 	go h.diskClient.monitor(h, h.parser.parseDiskMessage, 2)
 	go h.processClient.monitor(h, h.parser.parseProcessMessage, 5)
-	go h.monitorRough(2)
+	go h.roughClient.monitor(h, h.parser.parseRoughMessage, 2)
 }
 
 func (h *SSH) RegisterRoughListener(key string, listener Listener[RoughMessage]) {
 	atomic.AddInt32(&h.empty, 1)
-	h.roughListener.Set(key, listener)
+	h.roughClient.RegisterHandler(key, listener)
 }
 
 func (h *SSH) RemoveRoughListener(key string) {
 	atomic.AddInt32(&h.empty, -1)
-	h.roughListener.Remove(key)
+	h.roughClient.RemoveHandler(key)
 }
 
 func (h *SSH) RegisterSSHListener(key string, listeners AllListener) {
@@ -197,6 +177,13 @@ func (h *SSH) RemoveSSHListener(key string) {
 	h.netStatClient.RemoveHandler(key)
 	h.tempClient.RemoveHandler(key)
 	h.diskClient.RemoveHandler(key)
+}
+
+func (h *SSH) HasSSHListener(key string) bool {
+	return h.cpuInfoClient.hasHandler(key)
+}
+func (h *SSH) HasRoughListener(key string) bool {
+	return h.roughClient.hasHandler(key)
 }
 
 func (h *SSH) Empty() bool {

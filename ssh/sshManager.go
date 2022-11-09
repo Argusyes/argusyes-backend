@@ -112,15 +112,17 @@ func (m *Manager) RemoveRoughListener(port int, host string, user string, wsKey 
 
 func (m *Manager) ClearListener(wsKey string) {
 	m.clients.Each(func(_ string, v *SSH) {
-		mutex := m.mutexes.GetNilThenSet(v.Key, sync.Mutex{})
-		mutex.Lock()
-		v.RemoveSSHListener(wsKey)
-		v.RemoveRoughListener(wsKey)
-		if v.Empty() {
-			m.deleteSSH(v.Key, v)
+		if v.HasSSHListener(wsKey) || v.HasRoughListener(wsKey) {
+			mutex := m.mutexes.GetNilThenSet(v.Key, sync.Mutex{})
+			mutex.Lock()
+			v.RemoveSSHListener(wsKey)
+			v.RemoveRoughListener(wsKey)
+			if v.Empty() {
+				m.deleteSSH(v.Key, v)
+			}
+			mutex.Unlock()
+			log.Printf("done clear die wsocket handler in ssh %s", v.Key)
 		}
-		mutex.Unlock()
-		log.Printf("done clear die wsocket handler in ssh %s", v.Key)
 	})
 }
 
