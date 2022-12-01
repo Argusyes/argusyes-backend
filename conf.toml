@@ -1,5 +1,5 @@
 [mongo]
-Host="mongodb://10.112.230.222:27017"
+Host="mongodb://10.112.205.73:27017"
 
 [server]
 IP=""
